@@ -1021,6 +1021,7 @@ pg_plan_queries(List *querytrees, const char *query_string, int cursorOptions,
 static void
 exec_simple_query(const char *query_string)
 {
+	printf("Hey there!");
 	CommandDest dest = whereToSendOutput;
 	MemoryContext oldcontext;
 	List	   *parsetree_list;
