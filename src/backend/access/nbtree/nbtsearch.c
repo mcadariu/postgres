@@ -176,7 +176,12 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
 			page_access = BT_WRITE;
 
 		/* drop the read lock on the page, then acquire one on its child */
-		*bufP = _bt_relandgetbuf(rel, *bufP, child, page_access);
+		
+		if (opaque->btpo_level == 1) {
+			*bufP = _bt_relandgetbuf_with_stats(rel, *bufP, child, page_access, RECORD);	
+		} else {
+			*bufP = _bt_relandgetbuf_with_stats(rel, *bufP, child, page_access, METADATA);	
+		}
 
 		/* okay, all set to move down a level */
 		stack_in = new_stack;
@@ -297,14 +302,25 @@ _bt_moveright(Relation rel,
 				_bt_relbuf(rel, buf);
 
 			/* re-acquire the lock in the right mode, and re-check */
-			buf = _bt_getbuf(rel, blkno, access);
+
+			if (P_ISLEAF(opaque)) {
+				buf = _bt_getbuf_with_stats(rel, blkno, access, RECORD);
+			} else {
+				buf = _bt_getbuf_with_stats(rel, blkno, access, METADATA);
+			}
+				
 			continue;
 		}
 
 		if (P_IGNORE(opaque) || _bt_compare(rel, key, page, P_HIKEY) >= cmpval)
 		{
 			/* step right one page */
-			buf = _bt_relandgetbuf(rel, buf, opaque->btpo_next, access);
+			if (P_ISLEAF(opaque)) {
+				_bt_relandgetbuf_with_stats(rel, buf, opaque->btpo_next, access, RECORD);
+			} else {
+				_bt_relandgetbuf_with_stats(rel, buf, opaque->btpo_next, access, METADATA);
+			}
+
 			continue;
 		}
 		else
@@ -2258,7 +2274,7 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
 		{
 			/* read blkno, but check for interrupts first */
 			CHECK_FOR_INTERRUPTS();
-			so->currPos.buf = _bt_getbuf(rel, blkno, BT_READ);
+			so->currPos.buf = _bt_getbuf_with_stats(rel, blkno, BT_READ, RECORD);
 		}
 		else
 		{
@@ -2507,7 +2523,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 			if (blkno == P_NONE)
 				elog(ERROR, "fell off the end of index \"%s\"",
 					 RelationGetRelationName(rel));
-			buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
+			buf = _bt_relandgetbuf_with_stats(rel, buf, blkno, BT_READ, RECORD);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
 		}
@@ -2530,7 +2546,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, offnum));
 		blkno = BTreeTupleGetDownLink(itup);
 
-		buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
+		buf = _bt_relandgetbuf_with_stats(rel, buf, blkno, BT_READ, RECORD);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 	}

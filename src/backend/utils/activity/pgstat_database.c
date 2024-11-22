@@ -390,6 +390,10 @@ pgstat_database_flush_cb(PgStat_EntryRef *entry_ref, bool nowait)
 	PGSTAT_ACCUM_DBCOUNT(xact_rollback);
 	PGSTAT_ACCUM_DBCOUNT(blocks_fetched);
 	PGSTAT_ACCUM_DBCOUNT(blocks_hit);
+	PGSTAT_ACCUM_DBCOUNT(metadata_blocks_fetched);
+	PGSTAT_ACCUM_DBCOUNT(metadata_blocks_hit);
+	PGSTAT_ACCUM_DBCOUNT(record_blocks_fetched);
+	PGSTAT_ACCUM_DBCOUNT(record_blocks_hit);
 
 	PGSTAT_ACCUM_DBCOUNT(tuples_returned);
 	PGSTAT_ACCUM_DBCOUNT(tuples_fetched);

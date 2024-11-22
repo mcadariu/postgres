@@ -819,7 +819,13 @@ CREATE VIEW pg_statio_all_indexes AS
             I.relname AS indexrelname,
             pg_stat_get_blocks_fetched(I.oid) -
                     pg_stat_get_blocks_hit(I.oid) AS idx_blks_read,
-            pg_stat_get_blocks_hit(I.oid) AS idx_blks_hit
+            pg_stat_get_blocks_hit(I.oid) AS idx_blks_hit,
+            pg_stat_get_metadata_blocks_fetched(I.oid) -
+                    pg_stat_get_metadata_blocks_hit(I.oid) AS idx_metadata_blks_read,
+            pg_stat_get_metadata_blocks_hit(I.oid) AS idx_metadata_blks_hit,
+            pg_stat_get_record_blocks_fetched(I.oid) -
+                    pg_stat_get_record_blocks_hit(I.oid) AS idx_record_blks_read,
+            pg_stat_get_record_blocks_hit(I.oid) AS idx_record_blks_hit
     FROM pg_class C JOIN
             pg_index X ON C.oid = X.indrelid JOIN
             pg_class I ON I.oid = X.indexrelid

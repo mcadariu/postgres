@@ -14,6 +14,7 @@
 #ifndef NBTREE_H
 #define NBTREE_H
 
+#include "pgstat.h"
 #include "access/amapi.h"
 #include "access/itup.h"
 #include "access/sdir.h"
@@ -1240,9 +1241,12 @@ extern void _bt_metaversion(Relation rel, bool *heapkeyspace,
 							bool *allequalimage);
 extern void _bt_checkpage(Relation rel, Buffer buf);
 extern Buffer _bt_getbuf(Relation rel, BlockNumber blkno, int access);
+extern Buffer _bt_getbuf_with_stats(Relation rel, BlockNumber blkno, int access, PgStat_BufferType bufferType);
 extern Buffer _bt_allocbuf(Relation rel, Relation heaprel);
 extern Buffer _bt_relandgetbuf(Relation rel, Buffer obuf,
 							   BlockNumber blkno, int access);
+extern Buffer _bt_relandgetbuf_with_stats(Relation rel, Buffer obuf,
+							   BlockNumber blkno, int access, PgStat_BufferType bufferType);							   
 extern void _bt_relbuf(Relation rel, Buffer buf);
 extern void _bt_lockbuf(Relation rel, Buffer buf, int access);
 extern void _bt_unlockbuf(Relation rel, Buffer buf);
