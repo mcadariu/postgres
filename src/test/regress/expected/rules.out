@@ -2324,7 +2324,11 @@ pg_statio_all_indexes| SELECT c.oid AS relid,
     c.relname,
     i.relname AS indexrelname,
     (pg_stat_get_blocks_fetched(i.oid) - pg_stat_get_blocks_hit(i.oid)) AS idx_blks_read,
-    pg_stat_get_blocks_hit(i.oid) AS idx_blks_hit
+    pg_stat_get_blocks_hit(i.oid) AS idx_blks_hit,
+    (pg_stat_get_metadata_blocks_fetched(i.oid) - pg_stat_get_metadata_blocks_hit(i.oid)) AS idx_metadata_blks_read,
+    pg_stat_get_metadata_blocks_hit(i.oid) AS idx_metadata_blks_hit,
+    (pg_stat_get_record_blocks_fetched(i.oid) - pg_stat_get_record_blocks_hit(i.oid)) AS idx_record_blks_read,
+    pg_stat_get_record_blocks_hit(i.oid) AS idx_record_blks_hit
    FROM (((pg_class c
      JOIN pg_index x ON ((c.oid = x.indrelid)))
      JOIN pg_class i ON ((i.oid = x.indexrelid)))
@@ -2367,7 +2371,11 @@ pg_statio_sys_indexes| SELECT relid,
     relname,
     indexrelname,
     idx_blks_read,
-    idx_blks_hit
+    idx_blks_hit,
+    idx_metadata_blks_read,
+    idx_metadata_blks_hit,
+    idx_record_blks_read,
+    idx_record_blks_hit
    FROM pg_statio_all_indexes
   WHERE ((schemaname = ANY (ARRAY['pg_catalog'::name, 'information_schema'::name])) OR (schemaname ~ '^pg_toast'::text));
 pg_statio_sys_sequences| SELECT relid,
@@ -2396,7 +2404,11 @@ pg_statio_user_indexes| SELECT relid,
     relname,
     indexrelname,
     idx_blks_read,
-    idx_blks_hit
+    idx_blks_hit,
+    idx_metadata_blks_read,
+    idx_metadata_blks_hit,
+    idx_record_blks_read,
+    idx_record_blks_hit
    FROM pg_statio_all_indexes
   WHERE ((schemaname <> ALL (ARRAY['pg_catalog'::name, 'information_schema'::name])) AND (schemaname !~ '^pg_toast'::text));
 pg_statio_user_sequences| SELECT relid,
