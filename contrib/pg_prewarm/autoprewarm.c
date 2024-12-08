@@ -533,7 +533,7 @@ autoprewarm_database_main(Datum main_arg)
 
 		/* Prewarm buffer. */
 		buf = ReadBufferExtended(rel, blk->forknum, blk->blocknum, RBM_NORMAL,
-								 NULL);
+								 NULL, BUFFER_TYPE_UNKNOWN);
 		if (BufferIsValid(buf))
 		{
 			apw_state->prewarmed_blocks++;
