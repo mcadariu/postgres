@@ -14,6 +14,7 @@
 #ifndef BUFMGR_H
 #define BUFMGR_H
 
+#include "pgstat.h"
 #include "port/pg_iovec.h"
 #include "storage/block.h"
 #include "storage/buf.h"
@@ -205,6 +206,10 @@ extern Buffer ReadBuffer(Relation reln, BlockNumber blockNum);
 extern Buffer ReadBufferExtended(Relation reln, ForkNumber forkNum,
 								 BlockNumber blockNum, ReadBufferMode mode,
 								 BufferAccessStrategy strategy);
+extern Buffer ReadBufferWithStats(Relation reln, BlockNumber blockNum, PgStat_BufferType bufferType);
+extern Buffer ReadBufferExtendedWithStats(Relation reln, ForkNumber forkNum,
+								 BlockNumber blockNum, ReadBufferMode mode,
+								 BufferAccessStrategy strategy, PgStat_BufferType bufferType);
 extern Buffer ReadBufferWithoutRelcache(RelFileLocator rlocator,
 										ForkNumber forkNum, BlockNumber blockNum,
 										ReadBufferMode mode, BufferAccessStrategy strategy,
@@ -214,6 +219,11 @@ extern bool StartReadBuffer(ReadBuffersOperation *operation,
 							Buffer *buffer,
 							BlockNumber blocknum,
 							int flags);
+extern bool StartReadBufferWithStats(ReadBuffersOperation *operation,
+							Buffer *buffer,
+							BlockNumber blocknum,
+							int flags,
+							PgStat_BufferType);
 extern bool StartReadBuffers(ReadBuffersOperation *operation,
 							 Buffer *buffers,
 							 BlockNumber blockNum,
@@ -230,6 +240,8 @@ extern void IncrBufferRefCount(Buffer buffer);
 extern void CheckBufferIsPinnedOnce(Buffer buffer);
 extern Buffer ReleaseAndReadBuffer(Buffer buffer, Relation relation,
 								   BlockNumber blockNum);
+extern Buffer ReleaseAndReadBufferWithStats(Buffer buffer, Relation relation,
+								   BlockNumber blockNum, PgStat_BufferType bufferType);								   
 
 extern Buffer ExtendBufferedRel(BufferManagerRelation bmr,
 								ForkNumber forkNum,

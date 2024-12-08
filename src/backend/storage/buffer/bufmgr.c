@@ -487,6 +487,10 @@ static Buffer ReadBuffer_common(Relation rel,
 								SMgrRelation smgr, char smgr_persistence,
 								ForkNumber forkNum, BlockNumber blockNum,
 								ReadBufferMode mode, BufferAccessStrategy strategy);
+static Buffer ReadBuffer_common_with_stats(Relation rel,
+								SMgrRelation smgr, char smgr_persistence,
+								ForkNumber forkNum, BlockNumber blockNum,
+								ReadBufferMode mode, BufferAccessStrategy strategy, PgStat_BufferType bufferType);
 static BlockNumber ExtendBufferedRelCommon(BufferManagerRelation bmr,
 										   ForkNumber fork,
 										   BufferAccessStrategy strategy,
@@ -748,6 +752,12 @@ ReadBuffer(Relation reln, BlockNumber blockNum)
 	return ReadBufferExtended(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, NULL);
 }
 
+Buffer
+ReadBufferWithStats(Relation reln, BlockNumber blockNum, PgStat_BufferType bufferType)
+{
+	return ReadBufferExtendedWithStats(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, NULL, bufferType);
+}
+
 /*
  * ReadBufferExtended -- returns a buffer containing the requested
  *		block of the requested relation.  If the blknum
@@ -815,6 +825,31 @@ ReadBufferExtended(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
 	return buf;
 }
 
+inline Buffer
+ReadBufferExtendedWithStats(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
+				   ReadBufferMode mode, BufferAccessStrategy strategy, PgStat_BufferType bufferType)
+{
+	Buffer		buf;
+
+	/*
+	 * Reject attempts to read non-local temporary relations; we would be
+	 * likely to get wrong data since we have no visibility into the owning
+	 * session's local buffers.
+	 */
+	if (RELATION_IS_OTHER_TEMP(reln))
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 errmsg("cannot access temporary tables of other sessions")));
+
+	/*
+	 * Read the buffer, and update pgstat counters to reflect a cache hit or
+	 * miss.
+	 */
+	buf = ReadBuffer_common_with_stats(reln, RelationGetSmgr(reln), 0,
+							forkNum, blockNum, mode, strategy, bufferType);
+
+	return buf;
+}
 
 /*
  * ReadBufferWithoutRelcache -- like ReadBufferExtended, but doesn't require
@@ -1181,6 +1216,169 @@ PinBufferForBlock(Relation rel,
 }
 
 /*
+ * Pin a buffer for a given block.  *foundPtr is set to true if the block was
+ * already present, or false if more work is required to either read it in or
+ * zero it.
+ */
+static pg_attribute_always_inline Buffer
+PinBufferForBlockWithStats(Relation rel,
+				  SMgrRelation smgr,
+				  char persistence,
+				  ForkNumber forkNum,
+				  BlockNumber blockNum,
+				  BufferAccessStrategy strategy,
+				  bool *foundPtr,
+				  PgStat_BufferType bufferType)
+{
+	BufferDesc *bufHdr;
+	IOContext	io_context;
+	IOObject	io_object;
+
+	Assert(blockNum != P_NEW);
+
+	/* Persistence should be set before */
+	Assert((persistence == RELPERSISTENCE_TEMP ||
+			persistence == RELPERSISTENCE_PERMANENT ||
+			persistence == RELPERSISTENCE_UNLOGGED));
+
+	if (persistence == RELPERSISTENCE_TEMP)
+	{
+		io_context = IOCONTEXT_NORMAL;
+		io_object = IOOBJECT_TEMP_RELATION;
+	}
+	else
+	{
+		io_context = IOContextForStrategy(strategy);
+		io_object = IOOBJECT_RELATION;
+	}
+
+	TRACE_POSTGRESQL_BUFFER_READ_START(forkNum, blockNum,
+									   smgr->smgr_rlocator.locator.spcOid,
+									   smgr->smgr_rlocator.locator.dbOid,
+									   smgr->smgr_rlocator.locator.relNumber,
+									   smgr->smgr_rlocator.backend);
+
+	if (persistence == RELPERSISTENCE_TEMP)
+	{
+		bufHdr = LocalBufferAlloc(smgr, forkNum, blockNum, foundPtr);
+		if (*foundPtr)
+			pgBufferUsage.local_blks_hit++;
+	}
+	else
+	{
+		bufHdr = BufferAlloc(smgr, persistence, forkNum, blockNum,
+							 strategy, foundPtr, io_context);
+		if (*foundPtr)
+			pgBufferUsage.shared_blks_hit++;
+	}
+	if (rel)
+	{
+		/*
+		 * While pgBufferUsage's "read" counter isn't bumped unless we reach
+		 * WaitReadBuffers() (so, not for hits, and not for buffers that are
+		 * zeroed instead), the per-relation stats always count them.
+		 */
+		pgstat_count_buffer_read(rel);
+
+		if (bufferType == RECORD) {
+			(rel)->pgstat_info->counts.record_blocks_fetched++;
+		} else {
+			(rel)->pgstat_info->counts.metadata_blocks_fetched++;
+		}
+
+		if (*foundPtr) {
+			if (bufferType == RECORD) {
+				(rel)->pgstat_info->counts.record_blocks_hit++;
+			} else {
+				(rel)->pgstat_info->counts.metadata_blocks_hit++;
+			}
+			pgstat_count_buffer_hit(rel);
+		}
+	}
+	if (*foundPtr)
+	{
+		pgstat_count_io_op(io_object, io_context, IOOP_HIT);
+		if (VacuumCostActive)
+			VacuumCostBalance += VacuumCostPageHit;
+
+		TRACE_POSTGRESQL_BUFFER_READ_DONE(forkNum, blockNum,
+										  smgr->smgr_rlocator.locator.spcOid,
+										  smgr->smgr_rlocator.locator.dbOid,
+										  smgr->smgr_rlocator.locator.relNumber,
+										  smgr->smgr_rlocator.backend,
+										  true);
+	}
+
+	return BufferDescriptorGetBuffer(bufHdr);
+}
+
+static pg_attribute_always_inline Buffer
+ReadBuffer_common_with_stats(Relation rel, SMgrRelation smgr, char smgr_persistence,
+				  ForkNumber forkNum,
+				  BlockNumber blockNum, ReadBufferMode mode,
+				  BufferAccessStrategy strategy, PgStat_BufferType bufferType)
+{
+	ReadBuffersOperation operation;
+	Buffer		buffer;
+	int			flags;
+	char		persistence;
+
+	/*
+	 * Backward compatibility path, most code should use ExtendBufferedRel()
+	 * instead, as acquiring the extension lock inside ExtendBufferedRel()
+	 * scales a lot better.
+	 */
+	if (unlikely(blockNum == P_NEW))
+	{
+		uint32		flags = EB_SKIP_EXTENSION_LOCK;
+
+		/*
+		 * Since no-one else can be looking at the page contents yet, there is
+		 * no difference between an exclusive lock and a cleanup-strength
+		 * lock.
+		 */
+		if (mode == RBM_ZERO_AND_LOCK || mode == RBM_ZERO_AND_CLEANUP_LOCK)
+			flags |= EB_LOCK_FIRST;
+
+		return ExtendBufferedRel(BMR_REL(rel), forkNum, strategy, flags);
+	}
+
+	if (rel)
+		persistence = rel->rd_rel->relpersistence;
+	else
+		persistence = smgr_persistence;
+
+	if (unlikely(mode == RBM_ZERO_AND_CLEANUP_LOCK ||
+				 mode == RBM_ZERO_AND_LOCK))
+	{
+		bool		found;
+
+		buffer = PinBufferForBlockWithStats(rel, smgr, persistence,
+								   forkNum, blockNum, strategy, &found, bufferType);
+		ZeroAndLockBuffer(buffer, mode, found);
+		return buffer;
+	}
+
+	if (mode == RBM_ZERO_ON_ERROR)
+		flags = READ_BUFFERS_ZERO_ON_ERROR;
+	else
+		flags = 0;
+	operation.smgr = smgr;
+	operation.rel = rel;
+	operation.persistence = persistence;
+	operation.forknum = forkNum;
+	operation.strategy = strategy;
+	if (StartReadBufferWithStats(&operation,
+						&buffer,
+						blockNum,
+						flags, 
+						bufferType))
+		WaitReadBuffers(&operation);
+
+	return buffer;
+}
+
+/*
  * ReadBuffer_common -- common logic for all ReadBuffer variants
  *
  * smgr is required, rel is optional unless using P_NEW.
@@ -1345,6 +1543,103 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
 	return true;
 }
 
+static pg_attribute_always_inline bool
+StartReadBuffersImplWithStats(ReadBuffersOperation *operation,
+					 Buffer *buffers,
+					 BlockNumber blockNum,
+					 int *nblocks,
+					 int flags,
+					 PgStat_BufferType bufferType)
+{
+	int			actual_nblocks = *nblocks;
+	int			io_buffers_len = 0;
+	int			maxcombine = 0;
+
+	Assert(*nblocks > 0);
+	Assert(*nblocks <= MAX_IO_COMBINE_LIMIT);
+
+	for (int i = 0; i < actual_nblocks; ++i)
+	{
+		bool		found;
+
+		buffers[i] = PinBufferForBlockWithStats(operation->rel,
+									   operation->smgr,
+									   operation->persistence,
+									   operation->forknum,
+									   blockNum + i,
+									   operation->strategy,
+									   &found,
+									   bufferType);
+
+		if (found)
+		{
+			/*
+			 * Terminate the read as soon as we get a hit.  It could be a
+			 * single buffer hit, or it could be a hit that follows a readable
+			 * range.  We don't want to create more than one readable range,
+			 * so we stop here.
+			 */
+			actual_nblocks = i + 1;
+			break;
+		}
+		else
+		{
+			/* Extend the readable range to cover this block. */
+			io_buffers_len++;
+
+			/*
+			 * Check how many blocks we can cover with the same IO. The smgr
+			 * implementation might e.g. be limited due to a segment boundary.
+			 */
+			if (i == 0 && actual_nblocks > 1)
+			{
+				maxcombine = smgrmaxcombine(operation->smgr,
+											operation->forknum,
+											blockNum);
+				if (unlikely(maxcombine < actual_nblocks))
+				{
+					elog(DEBUG2, "limiting nblocks at %u from %u to %u",
+						 blockNum, actual_nblocks, maxcombine);
+					actual_nblocks = maxcombine;
+				}
+			}
+		}
+	}
+	*nblocks = actual_nblocks;
+
+	if (likely(io_buffers_len == 0))
+		return false;
+
+	/* Populate information needed for I/O. */
+	operation->buffers = buffers;
+	operation->blocknum = blockNum;
+	operation->flags = flags;
+	operation->nblocks = actual_nblocks;
+	operation->io_buffers_len = io_buffers_len;
+
+	if (flags & READ_BUFFERS_ISSUE_ADVICE)
+	{
+		/*
+		 * In theory we should only do this if PinBufferForBlock() had to
+		 * allocate new buffers above.  That way, if two calls to
+		 * StartReadBuffers() were made for the same blocks before
+		 * WaitReadBuffers(), only the first would issue the advice. That'd be
+		 * a better simulation of true asynchronous I/O, which would only
+		 * start the I/O once, but isn't done here for simplicity.  Note also
+		 * that the following call might actually issue two advice calls if we
+		 * cross a segment boundary; in a true asynchronous version we might
+		 * choose to process only one real I/O at a time in that case.
+		 */
+		smgrprefetch(operation->smgr,
+					 operation->forknum,
+					 blockNum,
+					 operation->io_buffers_len);
+	}
+
+	/* Indicate that WaitReadBuffers() should be called. */
+	return true;
+}
+
 /*
  * Begin reading a range of blocks beginning at blockNum and extending for
  * *nblocks.  On return, up to *nblocks pinned buffers holding those blocks
@@ -1388,6 +1683,22 @@ StartReadBuffer(ReadBuffersOperation *operation,
 	bool		result;
 
 	result = StartReadBuffersImpl(operation, buffer, blocknum, &nblocks, flags);
+	Assert(nblocks == 1);		/* single block can't be short */
+
+	return result;
+}
+
+bool
+StartReadBufferWithStats(ReadBuffersOperation *operation,
+				Buffer *buffer,
+				BlockNumber blocknum,
+				int flags,
+				PgStat_BufferType bufferType)
+{
+	int			nblocks = 1;
+	bool		result;
+
+	result = StartReadBuffersImplWithStats(operation, buffer, blocknum, &nblocks, flags, bufferType);
 	Assert(nblocks == 1);		/* single block can't be short */
 
 	return result;
@@ -2623,6 +2934,42 @@ ReleaseAndReadBuffer(Buffer buffer,
 	}
 
 	return ReadBuffer(relation, blockNum);
+}
+
+Buffer
+ReleaseAndReadBufferWithStats(Buffer buffer,
+					 Relation relation,
+					 BlockNumber blockNum,
+					 PgStat_BufferType bufferType)
+{
+	ForkNumber	forkNum = MAIN_FORKNUM;
+	BufferDesc *bufHdr;
+
+	if (BufferIsValid(buffer))
+	{
+		Assert(BufferIsPinned(buffer));
+		if (BufferIsLocal(buffer))
+		{
+			bufHdr = GetLocalBufferDescriptor(-buffer - 1);
+			if (bufHdr->tag.blockNum == blockNum &&
+				BufTagMatchesRelFileLocator(&bufHdr->tag, &relation->rd_locator) &&
+				BufTagGetForkNum(&bufHdr->tag) == forkNum)
+				return buffer;
+			UnpinLocalBuffer(buffer);
+		}
+		else
+		{
+			bufHdr = GetBufferDescriptor(buffer - 1);
+			/* we have pin, so it's ok to examine tag without spinlock */
+			if (bufHdr->tag.blockNum == blockNum &&
+				BufTagMatchesRelFileLocator(&bufHdr->tag, &relation->rd_locator) &&
+				BufTagGetForkNum(&bufHdr->tag) == forkNum)
+				return buffer;
+			UnpinBuffer(bufHdr);
+		}
+	}
+
+	return ReadBufferWithStats(relation, blockNum, bufferType);
 }
 
 /*
