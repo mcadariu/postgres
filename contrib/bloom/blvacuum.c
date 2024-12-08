@@ -60,7 +60,8 @@ blbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 		vacuum_delay_point();
 
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, 
+									BUFFER_TYPE_UNKNOWN);
 
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 		gxlogState = GenericXLogStart(index);
@@ -190,7 +191,7 @@ blvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 		vacuum_delay_point();
 
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 		page = (Page) BufferGetPage(buffer);
 
