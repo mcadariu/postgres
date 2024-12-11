@@ -1643,7 +1643,7 @@ brinGetStats(Relation index, BrinStatsData *stats)
 	Page		metapage;
 	BrinMetaPageData *metadata;
 
-	metabuffer = ReadBuffer(index, BRIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, BRIN_METAPAGE_BLKNO, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(metabuffer, BUFFER_LOCK_SHARE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = (BrinMetaPageData *) PageGetContents(metapage);

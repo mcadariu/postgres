@@ -849,7 +849,7 @@ _bt_getbuf(Relation rel, BlockNumber blkno, int access)
 	Assert(BlockNumberIsValid(blkno));
 
 	/* Read an existing block of the relation */
-	buf = ReadBuffer(rel, blkno);
+	buf = ReadBuffer(rel, blkno, BUFFER_TYPE_UNKNOWN);
 	_bt_lockbuf(rel, buf, access);
 	_bt_checkpage(rel, buf);
 
@@ -903,7 +903,7 @@ _bt_allocbuf(Relation rel, Relation heaprel)
 		blkno = GetFreeIndexPage(rel);
 		if (blkno == InvalidBlockNumber)
 			break;
-		buf = ReadBuffer(rel, blkno);
+		buf = ReadBuffer(rel, blkno, BUFFER_TYPE_UNKNOWN);
 		if (_bt_conditionallockbuf(rel, buf))
 		{
 			page = BufferGetPage(buf);

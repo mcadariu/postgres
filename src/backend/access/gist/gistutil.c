@@ -833,7 +833,7 @@ gistNewBuffer(Relation r, Relation heaprel)
 		if (blkno == InvalidBlockNumber)
 			break;				/* nothing left in FSM */
 
-		buffer = ReadBuffer(r, blkno);
+		buffer = ReadBuffer(r, blkno, BUFFER_TYPE_UNKNOWN);
 
 		/*
 		 * We have to guard against the possibility that someone else already

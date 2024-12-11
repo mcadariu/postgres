@@ -744,9 +744,10 @@ ReadRecentBuffer(RelFileLocator rlocator, ForkNumber forkNum, BlockNumber blockN
  *		fork with RBM_NORMAL mode and default strategy.
  */
 Buffer
-ReadBuffer(Relation reln, BlockNumber blockNum)
+ReadBuffer(Relation reln, BlockNumber blockNum, BufferType bufferType)
 {
-	return ReadBufferExtended(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, NULL, BUFFER_TYPE_UNKNOWN);
+	return ReadBufferExtended(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, NULL,
+							  bufferType);
 }
 
 /*
@@ -2626,7 +2627,7 @@ ReleaseAndReadBuffer(Buffer buffer,
 		}
 	}
 
-	return ReadBuffer(relation, blockNum);
+	return ReadBuffer(relation, blockNum, BUFFER_TYPE_UNKNOWN);
 }
 
 /*

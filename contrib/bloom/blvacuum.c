@@ -140,7 +140,7 @@ blbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 	 * info could already be out of date at this point, but blinsert() will
 	 * cope if so.
 	 */
-	buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO);
+	buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 
 	gxlogState = GenericXLogStart(index);

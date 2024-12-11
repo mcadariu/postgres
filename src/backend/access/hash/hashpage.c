@@ -74,7 +74,7 @@ _hash_getbuf(Relation rel, BlockNumber blkno, int access, int flags)
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
 
-	buf = ReadBuffer(rel, blkno);
+	buf = ReadBuffer(rel, blkno, BUFFER_TYPE_UNKNOWN);
 
 	if (access != HASH_NOLOCK)
 		LockBuffer(buf, access);
@@ -100,7 +100,7 @@ _hash_getbuf_with_condlock_cleanup(Relation rel, BlockNumber blkno, int flags)
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
 
-	buf = ReadBuffer(rel, blkno);
+	buf = ReadBuffer(rel, blkno, BUFFER_TYPE_UNKNOWN);
 
 	if (!ConditionalLockBufferForCleanup(buf))
 	{

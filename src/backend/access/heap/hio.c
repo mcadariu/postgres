@@ -640,7 +640,7 @@ loop:
 		else if (otherBlock < targetBlock)
 		{
 			/* lock other buffer first */
-			buffer = ReadBuffer(relation, targetBlock);
+			buffer = ReadBuffer(relation, targetBlock, BUFFER_TYPE_UNKNOWN);
 			if (PageIsAllVisible(BufferGetPage(buffer)))
 				visibilitymap_pin(relation, targetBlock, vmbuffer);
 			LockBuffer(otherBuffer, BUFFER_LOCK_EXCLUSIVE);
@@ -649,7 +649,7 @@ loop:
 		else
 		{
 			/* lock target buffer first */
-			buffer = ReadBuffer(relation, targetBlock);
+			buffer = ReadBuffer(relation, targetBlock, BUFFER_TYPE_UNKNOWN);
 			if (PageIsAllVisible(BufferGetPage(buffer)))
 				visibilitymap_pin(relation, targetBlock, vmbuffer);
 			LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);

@@ -239,7 +239,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 	data.ntuples = 0;
 	data.newRightlink = data.prevTail = InvalidBlockNumber;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO, BUFFER_TYPE_UNKNOWN);
 	metapage = BufferGetPage(metabuffer);
 
 	/*
@@ -319,7 +319,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 			data.prevTail = metadata->tail;
 			data.newRightlink = sublist.head;
 
-			buffer = ReadBuffer(index, metadata->tail);
+			buffer = ReadBuffer(index, metadata->tail, BUFFER_TYPE_UNKNOWN);
 			LockBuffer(buffer, GIN_EXCLUSIVE);
 			page = BufferGetPage(buffer);
 
@@ -358,7 +358,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 
 		CheckForSerializableConflictIn(index, NULL, GIN_METAPAGE_BLKNO);
 
-		buffer = ReadBuffer(index, metadata->tail);
+		buffer = ReadBuffer(index, metadata->tail, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, GIN_EXCLUSIVE);
 		page = BufferGetPage(buffer);
 
@@ -575,7 +575,8 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		while (data.ndeleted < GIN_NDELETE_AT_ONCE && blknoToDelete != newHead)
 		{
 			freespace[data.ndeleted] = blknoToDelete;
-			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
+			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete, 
+			                                    BUFFER_TYPE_UNKNOWN);
 			LockBuffer(buffers[data.ndeleted], GIN_EXCLUSIVE);
 			page = BufferGetPage(buffers[data.ndeleted]);
 
@@ -827,7 +828,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 		workMemory = work_mem;
 	}
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(metabuffer, GIN_SHARE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = GinPageGetMeta(metapage);
@@ -850,7 +851,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 	 * Read and lock head of pending list
 	 */
 	blkno = metadata->head;
-	buffer = ReadBuffer(index, blkno);
+	buffer = ReadBuffer(index, blkno, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buffer, GIN_SHARE);
 	page = BufferGetPage(buffer);
 
@@ -1003,7 +1004,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 		 * Read next page in pending list
 		 */
 		vacuum_delay_point();
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, GIN_SHARE);
 		page = BufferGetPage(buffer);
 	}

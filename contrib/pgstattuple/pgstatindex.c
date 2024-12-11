@@ -544,7 +544,7 @@ pgstatginindex_internal(Oid relid, FunctionCallInfo fcinfo)
 	/*
 	 * Read metapage
 	 */
-	buffer = ReadBuffer(rel, GIN_METAPAGE_BLKNO);
+	buffer = ReadBuffer(rel, GIN_METAPAGE_BLKNO, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buffer, GIN_SHARE);
 	page = BufferGetPage(buffer);
 	metadata = GinPageGetMeta(page);

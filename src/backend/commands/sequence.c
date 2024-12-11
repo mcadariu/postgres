@@ -1194,7 +1194,7 @@ read_seq_tuple(Relation rel, Buffer *buf, HeapTuple seqdatatuple)
 	sequence_magic *sm;
 	Form_pg_sequence_data seq;
 
-	*buf = ReadBuffer(rel, 0);
+	*buf = ReadBuffer(rel, 0, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(*buf, BUFFER_LOCK_EXCLUSIVE);
 
 	page = BufferGetPage(*buf);

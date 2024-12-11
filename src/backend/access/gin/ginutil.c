@@ -310,7 +310,7 @@ GinNewBuffer(Relation index)
 		if (blkno == InvalidBlockNumber)
 			break;
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, BUFFER_TYPE_UNKNOWN);
 
 		/*
 		 * We have to guard against the possibility that someone else already
@@ -627,7 +627,7 @@ ginGetStats(Relation index, GinStatsData *stats)
 	Page		metapage;
 	GinMetaPageData *metadata;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(metabuffer, GIN_SHARE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = GinPageGetMeta(metapage);
@@ -654,7 +654,7 @@ ginUpdateStats(Relation index, const GinStatsData *stats, bool is_build)
 	Page		metapage;
 	GinMetaPageData *metadata;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(metabuffer, GIN_EXCLUSIVE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = GinPageGetMeta(metapage);
