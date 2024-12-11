@@ -93,7 +93,7 @@ ReadBufferBI(Relation relation, BlockNumber targetBlock,
 	/* If not bulk-insert, exactly like ReadBuffer */
 	if (!bistate)
 		return ReadBufferExtended(relation, MAIN_FORKNUM, targetBlock,
-								  mode, NULL);
+								  mode, NULL, BUFFER_TYPE_UNKNOWN);
 
 	/* If we have the desired block already pinned, re-pin and return it */
 	if (bistate->current_buf != InvalidBuffer)
@@ -117,7 +117,7 @@ ReadBufferBI(Relation relation, BlockNumber targetBlock,
 
 	/* Perform a read using the buffer strategy */
 	buffer = ReadBufferExtended(relation, MAIN_FORKNUM, targetBlock,
-								mode, bistate->strategy);
+								mode, bistate->strategy, BUFFER_TYPE_UNKNOWN);
 
 	/* Save the selected block as target for future inserts */
 	IncrBufferRefCount(buffer);
