@@ -93,6 +93,17 @@ typedef enum ExtendBufferedFlags
 }			ExtendBufferedFlags;
 
 /*
+* Used to distinguish between leaf (record) and non-leaf (metadata) buffer 
+reads when traversing indexes.
+*/
+typedef enum BufferType 	
+{
+	BUFFER_TYPE_UNKNOWN,
+	BUFFER_TYPE_METADATA,
+	BUFFER_TYPE_RECORD
+} BufferType;
+
+/*
  * Some functions identify relations either by relation or smgr +
  * relpersistence.  Used via the BMR_REL()/BMR_SMGR() macros below.  This
  * allows us to use the same function for both recovery and normal operation.
@@ -204,7 +215,8 @@ extern bool ReadRecentBuffer(RelFileLocator rlocator, ForkNumber forkNum,
 extern Buffer ReadBuffer(Relation reln, BlockNumber blockNum);
 extern Buffer ReadBufferExtended(Relation reln, ForkNumber forkNum,
 								 BlockNumber blockNum, ReadBufferMode mode,
-								 BufferAccessStrategy strategy);
+								 BufferAccessStrategy strategy, 
+								 BufferType bufferType);
 extern Buffer ReadBufferWithoutRelcache(RelFileLocator rlocator,
 										ForkNumber forkNum, BlockNumber blockNum,
 										ReadBufferMode mode, BufferAccessStrategy strategy,

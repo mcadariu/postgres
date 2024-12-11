@@ -2178,7 +2178,7 @@ brin_vacuum_scan(Relation idxrel, BufferAccessStrategy strategy)
 		CHECK_FOR_INTERRUPTS();
 
 		buf = ReadBufferExtended(idxrel, MAIN_FORKNUM, blkno,
-								 RBM_NORMAL, strategy);
+								 RBM_NORMAL, strategy, BUFFER_TYPE_UNKNOWN);
 
 		brin_page_cleanup(idxrel, buf);
 

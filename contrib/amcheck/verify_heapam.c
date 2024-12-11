@@ -439,7 +439,8 @@ verify_heapam(PG_FUNCTION_ARGS)
 
 		/* Read and lock the next page. */
 		ctx.buffer = ReadBufferExtended(ctx.rel, MAIN_FORKNUM, ctx.blkno,
-										RBM_NORMAL, ctx.bstrategy);
+										RBM_NORMAL, ctx.bstrategy,
+										BUFFER_TYPE_UNKNOWN);
 		LockBuffer(ctx.buffer, BUFFER_LOCK_SHARE);
 		ctx.page = BufferGetPage(ctx.buffer);
 

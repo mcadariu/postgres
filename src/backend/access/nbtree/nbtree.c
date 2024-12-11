@@ -1143,7 +1143,7 @@ backtrack:
 	 * buffer access strategy.
 	 */
 	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-							 info->strategy);
+							 info->strategy, BUFFER_TYPE_UNKNOWN);
 	_bt_lockbuf(rel, buf, BT_READ);
 	page = BufferGetPage(buf);
 	opaque = NULL;

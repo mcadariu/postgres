@@ -250,7 +250,8 @@ pgstatindex_impl(Relation rel, FunctionCallInfo fcinfo)
 	 * Read metapage
 	 */
 	{
-		Buffer		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, 0, RBM_NORMAL, bstrategy);
+		Buffer		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, 0, RBM_NORMAL, bstrategy,
+												BUFFER_TYPE_UNKNOWN);
 		Page		page = BufferGetPage(buffer);
 		BTMetaPageData *metad = BTPageGetMeta(page);
 
@@ -286,7 +287,8 @@ pgstatindex_impl(Relation rel, FunctionCallInfo fcinfo)
 		CHECK_FOR_INTERRUPTS();
 
 		/* Read and lock buffer */
-		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy,
+									BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 		page = BufferGetPage(buffer);
@@ -645,7 +647,7 @@ pgstathashindex(PG_FUNCTION_ARGS)
 		CHECK_FOR_INTERRUPTS();
 
 		buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-								 bstrategy);
+								 bstrategy, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buf, BUFFER_LOCK_SHARE);
 		page = (Page) BufferGetPage(buf);
 

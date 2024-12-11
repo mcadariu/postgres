@@ -140,7 +140,7 @@ _hash_getinitbuf(Relation rel, BlockNumber blkno)
 		elog(ERROR, "hash AM does not use P_NEW");
 
 	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_ZERO_AND_LOCK,
-							 NULL);
+							 NULL, BUFFER_TYPE_UNKNOWN);
 
 	/* ref count and lock type are correct */
 
@@ -218,7 +218,7 @@ _hash_getnewbuf(Relation rel, BlockNumber blkno, ForkNumber forkNum)
 	else
 	{
 		buf = ReadBufferExtended(rel, forkNum, blkno, RBM_ZERO_AND_LOCK,
-								 NULL);
+								 NULL, BUFFER_TYPE_UNKNOWN);
 	}
 
 	/* ref count and lock type are correct */
@@ -245,7 +245,8 @@ _hash_getbuf_with_strategy(Relation rel, BlockNumber blkno,
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
 
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy,
+							BUFFER_TYPE_UNKNOWN);
 
 	if (access != HASH_NOLOCK)
 		LockBuffer(buf, access);

@@ -577,7 +577,8 @@ vm_readbuf(Relation rel, BlockNumber blkno, bool extend)
 	}
 	else
 		buf = ReadBufferExtended(rel, VISIBILITYMAP_FORKNUM, blkno,
-								 RBM_ZERO_ON_ERROR, NULL);
+								 RBM_ZERO_ON_ERROR, NULL,
+								 BUFFER_TYPE_UNKNOWN);
 
 	/*
 	 * Initializing the page when needed is trickier than it looks, because of
