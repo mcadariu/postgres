@@ -2598,7 +2598,8 @@ MarkBufferDirty(Buffer buffer)
 Buffer
 ReleaseAndReadBuffer(Buffer buffer,
 					 Relation relation,
-					 BlockNumber blockNum)
+					 BlockNumber blockNum,
+					 BufferType bufferType)
 {
 	ForkNumber	forkNum = MAIN_FORKNUM;
 	BufferDesc *bufHdr;
@@ -2627,7 +2628,7 @@ ReleaseAndReadBuffer(Buffer buffer,
 		}
 	}
 
-	return ReadBuffer(relation, blockNum, BUFFER_TYPE_UNKNOWN);
+	return ReadBuffer(relation, blockNum, bufferType);
 }
 
 /*

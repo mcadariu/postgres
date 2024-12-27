@@ -1007,7 +1007,7 @@ _bt_relandgetbuf(Relation rel, Buffer obuf, BlockNumber blkno, int access)
 	Assert(BlockNumberIsValid(blkno));
 	if (BufferIsValid(obuf))
 		_bt_unlockbuf(rel, obuf);
-	buf = ReleaseAndReadBuffer(obuf, rel, blkno);
+	buf = ReleaseAndReadBuffer(obuf, rel, blkno, BUFFER_TYPE_UNKNOWN);
 	_bt_lockbuf(rel, buf, access);
 
 	_bt_checkpage(rel, buf);

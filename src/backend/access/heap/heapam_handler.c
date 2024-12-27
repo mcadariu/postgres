@@ -128,7 +128,8 @@ heapam_index_fetch_tuple(struct IndexFetchTableData *scan,
 
 		hscan->xs_cbuf = ReleaseAndReadBuffer(hscan->xs_cbuf,
 											  hscan->xs_base.rel,
-											  ItemPointerGetBlockNumber(tid));
+											  ItemPointerGetBlockNumber(tid),
+											  BUFFER_TYPE_UNKNOWN);
 
 		/*
 		 * Prune page, but only if we weren't already on this page
@@ -2183,7 +2184,8 @@ heapam_scan_bitmap_next_block(TableScanDesc scan,
 	 */
 	hscan->rs_cbuf = ReleaseAndReadBuffer(hscan->rs_cbuf,
 										  scan->rs_rd,
-										  block);
+										  block, 
+										  BUFFER_TYPE_UNKNOWN);
 	hscan->rs_cblock = block;
 	buffer = hscan->rs_cbuf;
 	snapshot = scan->rs_snapshot;

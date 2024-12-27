@@ -149,7 +149,8 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 		{
 			/* in search mode we may forget path to leaf */
 			stack->blkno = child;
-			stack->buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, stack->blkno);
+			stack->buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, stack->blkno, 
+												 BUFFER_TYPE_UNKNOWN);
 		}
 		else
 		{
