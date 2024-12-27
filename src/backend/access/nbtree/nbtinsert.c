@@ -323,7 +323,8 @@ _bt_search_insert(Relation rel, Relation heaprel, BTInsertState insertstate)
 	if (RelationGetTargetBlock(rel) != InvalidBlockNumber)
 	{
 		/* Simulate a _bt_getbuf() call with conditional locking */
-		insertstate->buf = ReadBuffer(rel, RelationGetTargetBlock(rel));
+		insertstate->buf = ReadBuffer(rel, RelationGetTargetBlock(rel), 
+		 							  BUFFER_TYPE_UNKNOWN);
 		if (_bt_conditionallockbuf(rel, insertstate->buf))
 		{
 			Page		page;

@@ -143,11 +143,11 @@ ginDeletePage(GinVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 	 * deletable, parent and left pages.
 	 */
 	lBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, leftBlkno,
-								 RBM_NORMAL, gvs->strategy);
+								 RBM_NORMAL, gvs->strategy, BUFFER_TYPE_UNKNOWN);
 	dBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, deleteBlkno,
-								 RBM_NORMAL, gvs->strategy);
+								 RBM_NORMAL, gvs->strategy, BUFFER_TYPE_UNKNOWN);
 	pBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, parentBlkno,
-								 RBM_NORMAL, gvs->strategy);
+								 RBM_NORMAL, gvs->strategy, BUFFER_TYPE_UNKNOWN);
 
 	page = BufferGetPage(dBuffer);
 	rightlink = GinPageGetOpaque(page)->rightlink;
@@ -270,7 +270,7 @@ ginScanToDelete(GinVacuumState *gvs, BlockNumber blkno, bool isRoot,
 	}
 
 	buffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, blkno,
-								RBM_NORMAL, gvs->strategy);
+								RBM_NORMAL, gvs->strategy, BUFFER_TYPE_UNKNOWN);
 
 	if (!isRoot)
 		LockBuffer(buffer, GIN_EXCLUSIVE);
@@ -355,7 +355,7 @@ ginVacuumPostingTreeLeaves(GinVacuumState *gvs, BlockNumber blkno)
 		PostingItem *pitem;
 
 		buffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, gvs->strategy);
+									RBM_NORMAL, gvs->strategy, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, GIN_SHARE);
 		page = BufferGetPage(buffer);
 
@@ -396,7 +396,7 @@ ginVacuumPostingTreeLeaves(GinVacuumState *gvs, BlockNumber blkno)
 			break;
 
 		buffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, gvs->strategy);
+									RBM_NORMAL, gvs->strategy, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, GIN_EXCLUSIVE);
 		page = BufferGetPage(buffer);
 	}
@@ -419,7 +419,7 @@ ginVacuumPostingTree(GinVacuumState *gvs, BlockNumber rootBlkno)
 				   *tmp;
 
 		buffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, rootBlkno,
-									RBM_NORMAL, gvs->strategy);
+									RBM_NORMAL, gvs->strategy, BUFFER_TYPE_UNKNOWN);
 
 		/*
 		 * Lock posting tree root for cleanup to ensure there are no
@@ -598,7 +598,7 @@ ginbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 	gvs.result = stats;
 
 	buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-								RBM_NORMAL, info->strategy);
+								RBM_NORMAL, info->strategy, BUFFER_TYPE_UNKNOWN);
 
 	/* find leaf page */
 	for (;;)
@@ -631,7 +631,7 @@ ginbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 
 		UnlockReleaseBuffer(buffer);
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, BUFFER_TYPE_UNKNOWN);
 	}
 
 	/* right now we found leftmost page in entry's BTree */
@@ -674,7 +674,7 @@ ginbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 			break;
 
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, GIN_EXCLUSIVE);
 	}
 
@@ -751,7 +751,7 @@ ginvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 		vacuum_delay_point();
 
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, GIN_SHARE);
 		page = (Page) BufferGetPage(buffer);
 
