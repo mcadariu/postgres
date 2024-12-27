@@ -225,12 +225,14 @@ extern Buffer ReadBufferWithoutRelcache(RelFileLocator rlocator,
 extern bool StartReadBuffer(ReadBuffersOperation *operation,
 							Buffer *buffer,
 							BlockNumber blocknum,
-							int flags);
+							int flags,
+							BufferType bufferType);
 extern bool StartReadBuffers(ReadBuffersOperation *operation,
 							 Buffer *buffers,
 							 BlockNumber blockNum,
 							 int *nblocks,
-							 int flags);
+							 int flags, 
+							 BufferType bufferType);
 extern void WaitReadBuffers(ReadBuffersOperation *operation);
 
 extern void ReleaseBuffer(Buffer buffer);

@@ -1231,7 +1231,7 @@ ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
 		bool		found;
 
 		buffer = PinBufferForBlock(rel, smgr, persistence,
-								   forkNum, blockNum, strategy, BUFFER_TYPE_UNKNOWN, &found);
+								   forkNum, blockNum, strategy, bufferType, &found);
 		ZeroAndLockBuffer(buffer, mode, found);
 		return buffer;
 	}
@@ -1248,7 +1248,8 @@ ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
 	if (StartReadBuffer(&operation,
 						&buffer,
 						blockNum,
-						flags))
+						flags,
+						bufferType))
 		WaitReadBuffers(&operation);
 
 	return buffer;
@@ -1259,7 +1260,8 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
 					 Buffer *buffers,
 					 BlockNumber blockNum,
 					 int *nblocks,
-					 int flags)
+					 int flags,
+					 BufferType bufferType)
 {
 	int			actual_nblocks = *nblocks;
 	int			io_buffers_len = 0;
@@ -1278,7 +1280,7 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
 									   operation->forknum,
 									   blockNum + i,
 									   operation->strategy,
-									   BUFFER_TYPE_UNKNOWN,
+									   bufferType,
 									   &found);
 
 		if (found)
@@ -1373,9 +1375,10 @@ StartReadBuffers(ReadBuffersOperation *operation,
 				 Buffer *buffers,
 				 BlockNumber blockNum,
 				 int *nblocks,
-				 int flags)
+				 int flags,
+				 BufferType bufferType)
 {
-	return StartReadBuffersImpl(operation, buffers, blockNum, nblocks, flags);
+	return StartReadBuffersImpl(operation, buffers, blockNum, nblocks, flags, bufferType);
 }
 
 /*
@@ -1387,12 +1390,13 @@ bool
 StartReadBuffer(ReadBuffersOperation *operation,
 				Buffer *buffer,
 				BlockNumber blocknum,
-				int flags)
+				int flags,
+				BufferType bufferType)
 {
 	int			nblocks = 1;
 	bool		result;
 
-	result = StartReadBuffersImpl(operation, buffer, blocknum, &nblocks, flags);
+	result = StartReadBuffersImpl(operation, buffer, blocknum, &nblocks, flags, bufferType);
 	Assert(nblocks == 1);		/* single block can't be short */
 
 	return result;
