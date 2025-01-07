@@ -1164,8 +1164,21 @@ PinBufferForBlock(Relation rel,
 		 * zeroed instead), the per-relation stats always count them.
 		 */
 		pgstat_count_buffer_read(rel);
-		if (*foundPtr)
+
+		if (bufferType == BUFFER_TYPE_METADATA)
+			pgstat_count_metadata_buffer_read(rel);
+		else 
+			pgstat_count_record_buffer_read(rel);
+
+		if (*foundPtr) 
+		{
+			if (bufferType == BUFFER_TYPE_METADATA)
+				pgstat_count_metadata_buffer_hit(rel);
+			else 
+				pgstat_count_record_buffer_hit(rel);
+				
 			pgstat_count_buffer_hit(rel);
+		}	
 	}
 	if (*foundPtr)
 	{
