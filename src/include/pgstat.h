@@ -209,6 +209,11 @@ typedef struct PgStat_TableCounts
 
 	PgStat_Counter blocks_fetched;
 	PgStat_Counter blocks_hit;
+
+	PgStat_Counter metadata_blocks_fetched;
+	PgStat_Counter metadata_blocks_hit;
+	PgStat_Counter record_blocks_fetched;
+	PgStat_Counter record_blocks_hit;
 } PgStat_TableCounts;
 
 /* ----------
@@ -360,6 +365,10 @@ typedef struct PgStat_StatDBEntry
 	PgStat_Counter xact_rollback;
 	PgStat_Counter blocks_fetched;
 	PgStat_Counter blocks_hit;
+	PgStat_Counter metadata_blocks_fetched;
+	PgStat_Counter metadata_blocks_hit;
+	PgStat_Counter record_blocks_fetched;
+	PgStat_Counter record_blocks_hit;
 	PgStat_Counter tuples_returned;
 	PgStat_Counter tuples_fetched;
 	PgStat_Counter tuples_inserted;
@@ -454,6 +463,11 @@ typedef struct PgStat_StatTabEntry
 
 	PgStat_Counter blocks_fetched;
 	PgStat_Counter blocks_hit;
+
+	PgStat_Counter metadata_blocks_fetched;
+	PgStat_Counter metadata_blocks_hit;
+	PgStat_Counter record_blocks_fetched;
+	PgStat_Counter record_blocks_hit;
 
 	TimestampTz last_vacuum_time;	/* user initiated vacuum */
 	PgStat_Counter vacuum_count;
@@ -680,6 +694,26 @@ extern void pgstat_report_analyze(Relation rel,
 	do {															\
 		if (pgstat_should_count_relation(rel))						\
 			(rel)->pgstat_info->counts.blocks_hit++;				\
+	} while (0)
+#define pgstat_count_record_buffer_read(rel)					    \
+	do {															\
+		if (pgstat_should_count_relation(rel))						\
+			(rel)->pgstat_info->counts.record_blocks_fetched++;	    \
+	} while (0)
+#define pgstat_count_record_buffer_hit(rel)							\
+	do {															\
+		if (pgstat_should_count_relation(rel))						\
+			(rel)->pgstat_info->counts.record_blocks_hit++;			\
+	} while (0)
+#define pgstat_count_metadata_buffer_read(rel)						\
+	do {															\
+		if (pgstat_should_count_relation(rel))						\
+			(rel)->pgstat_info->counts.metadata_blocks_fetched++;	\
+	} while (0)
+#define pgstat_count_metadata_buffer_hit(rel)						\
+	do {															\
+		if (pgstat_should_count_relation(rel))						\
+			(rel)->pgstat_info->counts.metadata_blocks_hit++;		\
 	} while (0)
 
 extern void pgstat_count_heap_insert(Relation rel, PgStat_Counter n);
