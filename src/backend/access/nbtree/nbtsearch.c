@@ -125,6 +125,7 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
 		ItemId		itemid;
 		IndexTuple	itup;
 		BlockNumber child;
+		BufferType  bufferType;
 		BTStack		new_stack;
 
 		/*
@@ -177,8 +178,9 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
 		if (opaque->btpo_level == 1 && access == BT_WRITE)
 			page_access = BT_WRITE;
 
+		bufferType = (opaque->btpo_level == 1) ? BUFFER_TYPE_RECORD : BUFFER_TYPE_METADATA;
 		/* drop the read lock on the page, then acquire one on its child */
-		*bufP = _bt_relandgetbuf(rel, *bufP, child, page_access);
+		*bufP = _bt_relandgetbuf(rel, *bufP, child, page_access, bufferType);
 
 		/* okay, all set to move down a level */
 		stack_in = new_stack;
@@ -249,6 +251,7 @@ _bt_moveright(Relation rel,
 	Page		page;
 	BTPageOpaque opaque;
 	int32		cmpval;
+	BufferType bufferType;
 
 	Assert(!forupdate || heaprel != NULL);
 
@@ -279,6 +282,8 @@ _bt_moveright(Relation rel,
 		if (P_RIGHTMOST(opaque))
 			break;
 
+		bufferType = P_ISLEAF(opaque) ? BUFFER_TYPE_RECORD : BUFFER_TYPE_METADATA;
+
 		/*
 		 * Finish any incomplete splits we encounter along the way.
 		 */
@@ -299,14 +304,14 @@ _bt_moveright(Relation rel,
 				_bt_relbuf(rel, buf);
 
 			/* re-acquire the lock in the right mode, and re-check */
-			buf = _bt_getbuf(rel, blkno, access);
+			buf = _bt_getbuf(rel, blkno, access, bufferType);
 			continue;
 		}
 
 		if (P_IGNORE(opaque) || _bt_compare(rel, key, page, P_HIKEY) >= cmpval)
 		{
 			/* step right one page */
-			buf = _bt_relandgetbuf(rel, buf, opaque->btpo_next, access);
+			buf = _bt_relandgetbuf(rel, buf, opaque->btpo_next, access, bufferType);
 			continue;
 		}
 		else
@@ -2259,7 +2264,7 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
 		{
 			/* read blkno, but check for interrupts first */
 			CHECK_FOR_INTERRUPTS();
-			so->currPos.buf = _bt_getbuf(rel, blkno, BT_READ);
+			so->currPos.buf = _bt_getbuf(rel, blkno, BT_READ, BUFFER_TYPE_RECORD);
 		}
 		else
 		{
@@ -2354,11 +2359,12 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 		Buffer		buf;
 		Page		page;
 		BTPageOpaque opaque;
+		BufferType  bufferType;
 		int			tries;
 
 		/* check for interrupts while we're not holding any buffer lock */
 		CHECK_FOR_INTERRUPTS();
-		buf = _bt_getbuf(rel, *blkno, BT_READ);
+		buf = _bt_getbuf(rel, *blkno, BT_READ, BUFFER_TYPE_UNKNOWN);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 
@@ -2385,7 +2391,8 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 				break;
 			/* step right */
 			*blkno = opaque->btpo_next;
-			buf = _bt_relandgetbuf(rel, buf, *blkno, BT_READ);
+			bufferType = P_ISLEAF(opaque) ? BUFFER_TYPE_RECORD : BUFFER_TYPE_METADATA;
+			buf = _bt_relandgetbuf(rel, buf, *blkno, BT_READ, bufferType);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
 		}
@@ -2395,7 +2402,8 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 		 * _bt_readpage, which is passed by caller as lastcurrblkno) to see
 		 * what's up with its prev sibling link
 		 */
-		buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ);
+		buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ, 
+		                       BUFFER_TYPE_UNKNOWN);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 		if (P_ISDELETED(opaque))
@@ -2412,7 +2420,9 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 					elog(ERROR, "fell off the end of index \"%s\"",
 						 RelationGetRelationName(rel));
 				lastcurrblkno = opaque->btpo_next;
-				buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ);
+				bufferType = P_ISLEAF(opaque) ? BUFFER_TYPE_RECORD : BUFFER_TYPE_METADATA;
+				buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ, 
+									   bufferType);
 				page = BufferGetPage(buf);
 				opaque = BTPageGetOpaque(page);
 				if (!P_ISDELETED(opaque))
@@ -2501,7 +2511,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 			if (blkno == P_NONE)
 				elog(ERROR, "fell off the end of index \"%s\"",
 					 RelationGetRelationName(rel));
-			buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
+			buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ, BUFFER_TYPE_RECORD);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
 		}
@@ -2524,7 +2534,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, offnum));
 		blkno = BTreeTupleGetDownLink(itup);
 
-		buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
+		buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ, BUFFER_TYPE_RECORD);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 	}

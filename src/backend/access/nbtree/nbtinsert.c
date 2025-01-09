@@ -734,7 +734,9 @@ _bt_check_unique(Relation rel, BTInsertState insertstate, Relation heapRel,
 			{
 				BlockNumber nblkno = opaque->btpo_next;
 
-				nbuf = _bt_relandgetbuf(rel, nbuf, nblkno, BT_READ);
+				BufferType bufferType = P_ISLEAF(opaque) ? BUFFER_TYPE_RECORD :
+														   BUFFER_TYPE_METADATA;
+				nbuf = _bt_relandgetbuf(rel, nbuf, nblkno, BT_READ, bufferType);
 				page = BufferGetPage(nbuf);
 				opaque = BTPageGetOpaque(page);
 				if (!P_IGNORE(opaque))
@@ -1041,7 +1043,8 @@ _bt_stepright(Relation rel, Relation heaprel, BTInsertState insertstate,
 	rblkno = opaque->btpo_next;
 	for (;;)
 	{
-		rbuf = _bt_relandgetbuf(rel, rbuf, rblkno, BT_WRITE);
+		BufferType bufferType = P_ISLEAF(opaque) ? BUFFER_TYPE_RECORD : BUFFER_TYPE_METADATA;
+		rbuf = _bt_relandgetbuf(rel, rbuf, rblkno, BT_WRITE, bufferType);
 		page = BufferGetPage(rbuf);
 		opaque = BTPageGetOpaque(page);
 
@@ -1260,7 +1263,8 @@ _bt_insertonpg(Relation rel,
 			Assert(!isleaf);
 			Assert(BufferIsValid(cbuf));
 
-			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, 
+								 BUFFER_TYPE_METADATA);
 			metapg = BufferGetPage(metabuf);
 			metad = BTPageGetMeta(metapg);
 
@@ -1891,7 +1895,10 @@ _bt_split(Relation rel, Relation heaprel, BTScanInsert itup_key, Buffer buf,
 	 */
 	if (!isrightmost)
 	{
-		sbuf = _bt_getbuf(rel, oopaque->btpo_next, BT_WRITE);
+		BufferType bufferType = P_ISLEAF(oopaque) ? BUFFER_TYPE_RECORD :
+												    BUFFER_TYPE_METADATA;
+
+		sbuf = _bt_getbuf(rel, oopaque->btpo_next, BT_WRITE, bufferType);
 		spage = BufferGetPage(sbuf);
 		sopaque = BTPageGetOpaque(spage);
 		if (sopaque->btpo_prev != origpagenumber)
@@ -2248,12 +2255,15 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 	BTPageOpaque rpageop;
 	bool		wasroot;
 	bool		wasonly;
+	BufferType bufferType;
 
 	Assert(P_INCOMPLETE_SPLIT(lpageop));
 	Assert(heaprel != NULL);
 
-	/* Lock right sibling, the one missing the downlink */
-	rbuf = _bt_getbuf(rel, lpageop->btpo_next, BT_WRITE);
+	/* Lock right sibling, the one missing the downlink */ 
+	bufferType = P_ISLEAF(lpageop) ? BUFFER_TYPE_RECORD : 
+									 BUFFER_TYPE_METADATA;
+	rbuf = _bt_getbuf(rel, lpageop->btpo_next, BT_WRITE, bufferType);
 	rpage = BufferGetPage(rbuf);
 	rpageop = BTPageGetOpaque(rpage);
 
@@ -2265,7 +2275,8 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 		BTMetaPageData *metad;
 
 		/* acquire lock on the metapage */
-		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, 
+							 BUFFER_TYPE_METADATA);
 		metapg = BufferGetPage(metabuf);
 		metad = BTPageGetMeta(metapg);
 
@@ -2331,7 +2342,7 @@ _bt_getstackbuf(Relation rel, Relation heaprel, BTStack stack, BlockNumber child
 		Page		page;
 		BTPageOpaque opaque;
 
-		buf = _bt_getbuf(rel, blkno, BT_WRITE);
+		buf = _bt_getbuf(rel, blkno, BT_WRITE, BUFFER_TYPE_UNKNOWN);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 
@@ -2473,7 +2484,7 @@ _bt_newlevel(Relation rel, Relation heaprel, Buffer lbuf, Buffer rbuf)
 	rootblknum = BufferGetBlockNumber(rootbuf);
 
 	/* acquire lock on the metapage */
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, BUFFER_TYPE_METADATA);
 	metapg = BufferGetPage(metabuf);
 	metad = BTPageGetMeta(metapg);
 
