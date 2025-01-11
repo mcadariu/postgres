@@ -628,7 +628,8 @@ spgvacuumpage(spgBulkDeleteState *bds, BlockNumber blkno)
 	vacuum_delay_point();
 
 	buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-								RBM_NORMAL, bds->info->strategy);
+								RBM_NORMAL, bds->info->strategy,
+								BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 	page = (Page) BufferGetPage(buffer);
 
@@ -709,7 +710,8 @@ spgprocesspending(spgBulkDeleteState *bds)
 		/* examine the referenced page */
 		blkno = ItemPointerGetBlockNumber(&pitem->tid);
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, bds->info->strategy);
+									RBM_NORMAL, bds->info->strategy,
+									BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 		page = (Page) BufferGetPage(buffer);
 

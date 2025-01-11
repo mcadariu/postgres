@@ -373,7 +373,8 @@ pgstat_heap(Relation rel, FunctionCallInfo fcinfo)
 			CHECK_FOR_INTERRUPTS();
 
 			buffer = ReadBufferExtended(rel, MAIN_FORKNUM, block,
-										RBM_NORMAL, hscan->rs_strategy);
+										RBM_NORMAL, hscan->rs_strategy, 
+										BUFFER_TYPE_UNKNOWN);
 			LockBuffer(buffer, BUFFER_LOCK_SHARE);
 			stat.free_space += PageGetExactFreeSpace((Page) BufferGetPage(buffer));
 			UnlockReleaseBuffer(buffer);
@@ -386,7 +387,8 @@ pgstat_heap(Relation rel, FunctionCallInfo fcinfo)
 		CHECK_FOR_INTERRUPTS();
 
 		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, block,
-									RBM_NORMAL, hscan->rs_strategy);
+									RBM_NORMAL, hscan->rs_strategy,
+									BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 		stat.free_space += PageGetExactFreeSpace((Page) BufferGetPage(buffer));
 		UnlockReleaseBuffer(buffer);
@@ -411,7 +413,8 @@ pgstat_btree_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
 	Buffer		buf;
 	Page		page;
 
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy,
+							BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buf, BT_READ);
 	page = BufferGetPage(buf);
 
@@ -497,7 +500,8 @@ pgstat_gist_page(pgstattuple_type *stat, Relation rel, BlockNumber blkno,
 	Buffer		buf;
 	Page		page;
 
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy,
+							 BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buf, GIST_SHARE);
 	gistcheckpage(rel, buf);
 	page = BufferGetPage(buf);

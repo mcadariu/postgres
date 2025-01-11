@@ -1300,7 +1300,8 @@ log_newpage_range(Relation rel, ForkNumber forknum,
 		while (nbufs < XLR_MAX_BLOCK_ID && blkno < endblk)
 		{
 			Buffer		buf = ReadBufferExtended(rel, forknum, blkno,
-												 RBM_NORMAL, NULL);
+												 RBM_NORMAL, NULL,
+												 BUFFER_TYPE_UNKNOWN);
 
 			LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 

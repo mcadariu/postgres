@@ -282,7 +282,7 @@ bt_page_stats_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 
 	bt_index_block_validate(rel, blkno);
 
-	buffer = ReadBuffer(rel, blkno);
+	buffer = ReadBuffer(rel, blkno, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 	/* keep compiler quiet */
@@ -422,7 +422,7 @@ bt_multi_page_stats(PG_FUNCTION_ARGS)
 		BTPageStat	stat;
 		TupleDesc	tupleDesc;
 
-		buffer = ReadBuffer(rel, uargs->blkno);
+		buffer = ReadBuffer(rel, uargs->blkno, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 		/* keep compiler quiet */
@@ -651,7 +651,7 @@ bt_page_items_internal(PG_FUNCTION_ARGS, enum pageinspect_version ext_version)
 
 		bt_index_block_validate(rel, blkno);
 
-		buffer = ReadBuffer(rel, blkno);
+		buffer = ReadBuffer(rel, blkno, BUFFER_TYPE_UNKNOWN);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 		/*
@@ -875,7 +875,7 @@ bt_metap(PG_FUNCTION_ARGS)
 				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
 				 errmsg("cannot access temporary tables of other sessions")));
 
-	buffer = ReadBuffer(rel, 0);
+	buffer = ReadBuffer(rel, 0, BUFFER_TYPE_UNKNOWN);
 	LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 	page = BufferGetPage(buffer);
