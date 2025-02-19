@@ -1002,11 +1002,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 		/*
 		 * Read next page in pending list
 		 */
-<<<<<<< HEAD
-		vacuum_delay_point();
-=======
 		vacuum_delay_point(false);
->>>>>>> abba2d77e40e33ee39c9402a4b3d73d089fe0329
 		buffer = ReadBuffer(index, blkno, NULL);
 		LockBuffer(buffer, GIN_SHARE);
 		page = BufferGetPage(buffer);
