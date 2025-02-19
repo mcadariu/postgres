@@ -22,6 +22,7 @@
  */
 #include "postgres.h"
 
+#include "pgstat.h"
 #include "access/nbtree.h"
 #include "access/nbtxlog.h"
 #include "access/tableam.h"
@@ -373,7 +374,7 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 		Assert(rootblkno != P_NONE);
 		rootlevel = metad->btm_fastlevel;
 
-		rootbuf = _bt_getbuf(rel, rootblkno, BT_READ);
+		rootbuf = _bt_getbuf_with_stats(rel, rootblkno, BT_READ, METADATA);
 		rootpage = BufferGetPage(rootbuf);
 		rootopaque = BTPageGetOpaque(rootpage);
 
@@ -399,7 +400,7 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 		rel->rd_amcache = NULL;
 	}
 
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+	metabuf = _bt_getbuf_with_stats(rel, BTREE_METAPAGE, BT_READ, METADATA);
 	metad = _bt_getmeta(rel, metabuf);
 
 	/* if no root page initialized yet, do it */
@@ -535,7 +536,7 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 
 		for (;;)
 		{
-			rootbuf = _bt_relandgetbuf(rel, rootbuf, rootblkno, BT_READ);
+			rootbuf = _bt_relandgetbuf_with_stats(rel, rootbuf, rootblkno, BT_READ, METADATA);
 			rootpage = BufferGetPage(rootbuf);
 			rootopaque = BTPageGetOpaque(rootpage);
 
@@ -599,7 +600,7 @@ _bt_gettrueroot(Relation rel)
 		pfree(rel->rd_amcache);
 	rel->rd_amcache = NULL;
 
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+	metabuf = _bt_getbuf_with_stats(rel, BTREE_METAPAGE, BT_READ, METADATA);
 	metapg = BufferGetPage(metabuf);
 	metaopaque = BTPageGetOpaque(metapg);
 	metad = BTPageGetMeta(metapg);
@@ -680,7 +681,7 @@ _bt_getrootheight(Relation rel)
 	{
 		Buffer		metabuf;
 
-		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+		metabuf = _bt_getbuf_with_stats(rel, BTREE_METAPAGE, BT_READ, METADATA);
 		metad = _bt_getmeta(rel, metabuf);
 
 		/*
@@ -744,7 +745,7 @@ _bt_metaversion(Relation rel, bool *heapkeyspace, bool *allequalimage)
 	{
 		Buffer		metabuf;
 
-		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+		metabuf = _bt_getbuf_with_stats(rel, BTREE_METAPAGE, BT_READ, METADATA);
 		metad = _bt_getmeta(rel, metabuf);
 
 		/*
@@ -850,6 +851,21 @@ _bt_getbuf(Relation rel, BlockNumber blkno, int access)
 
 	/* Read an existing block of the relation */
 	buf = ReadBuffer(rel, blkno);
+	_bt_lockbuf(rel, buf, access);
+	_bt_checkpage(rel, buf);
+
+	return buf;
+}
+
+Buffer
+_bt_getbuf_with_stats(Relation rel, BlockNumber blkno, int access, PgStat_BufferType bufferType)
+{
+	Buffer		buf;
+
+	Assert(BlockNumberIsValid(blkno));
+
+	/* Read an existing block of the relation */
+	buf = ReadBufferWithStats(rel, blkno, bufferType);
 	_bt_lockbuf(rel, buf, access);
 	_bt_checkpage(rel, buf);
 
@@ -1008,6 +1024,21 @@ _bt_relandgetbuf(Relation rel, Buffer obuf, BlockNumber blkno, int access)
 	if (BufferIsValid(obuf))
 		_bt_unlockbuf(rel, obuf);
 	buf = ReleaseAndReadBuffer(obuf, rel, blkno);
+	_bt_lockbuf(rel, buf, access);
+
+	_bt_checkpage(rel, buf);
+	return buf;
+}
+
+Buffer
+_bt_relandgetbuf_with_stats(Relation rel, Buffer obuf, BlockNumber blkno, int access, PgStat_BufferType bufferType)
+{
+	Buffer		buf;
+
+	Assert(BlockNumberIsValid(blkno));
+	if (BufferIsValid(obuf))
+		_bt_unlockbuf(rel, obuf);
+	buf = ReleaseAndReadBufferWithStats(obuf, rel, blkno, bufferType);
 	_bt_lockbuf(rel, buf, access);
 
 	_bt_checkpage(rel, buf);
