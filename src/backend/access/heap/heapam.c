@@ -1518,7 +1518,7 @@ heap_fetch(Relation relation,
 	/*
 	 * Fetch and pin the appropriate page of the relation.
 	 */
-	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(tid));
+	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(tid), NULL);
 
 	/*
 	 * Need share lock on buffer to examine tuple commit status.
@@ -1812,7 +1812,7 @@ heap_get_latest_tid(TableScanDesc sscan,
 		/*
 		 * Read, pin, and lock the page.
 		 */
-		buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(&ctid));
+		buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(&ctid), NULL);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 		page = BufferGetPage(buffer);
 
@@ -2708,7 +2708,7 @@ heap_delete(Relation relation, ItemPointer tid,
 				 errmsg("cannot delete tuples during a parallel operation")));
 
 	block = ItemPointerGetBlockNumber(tid);
-	buffer = ReadBuffer(relation, block);
+	buffer = ReadBuffer(relation, block, NULL);
 	page = BufferGetPage(buffer);
 
 	/*
@@ -3236,7 +3236,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
 	interesting_attrs = bms_add_members(interesting_attrs, id_attrs);
 
 	block = ItemPointerGetBlockNumber(otid);
-	buffer = ReadBuffer(relation, block);
+	buffer = ReadBuffer(relation, block, NULL);
 	page = BufferGetPage(buffer);
 
 	/*
@@ -4448,7 +4448,7 @@ heap_lock_tuple(Relation relation, HeapTuple tuple,
 	bool		have_tuple_lock = false;
 	bool		cleared_all_frozen = false;
 
-	*buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(tid));
+	*buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(tid), NULL);
 	block = ItemPointerGetBlockNumber(tid);
 
 	/*
@@ -5944,7 +5944,7 @@ heap_finish_speculative(Relation relation, ItemPointer tid)
 	ItemId		lp = NULL;
 	HeapTupleHeader htup;
 
-	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(tid));
+	buffer = ReadBuffer(relation, ItemPointerGetBlockNumber(tid), NULL);
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 	page = (Page) BufferGetPage(buffer);
 
@@ -6035,7 +6035,7 @@ heap_abort_speculative(Relation relation, ItemPointer tid)
 	Assert(ItemPointerIsValid(tid));
 
 	block = ItemPointerGetBlockNumber(tid);
-	buffer = ReadBuffer(relation, block);
+	buffer = ReadBuffer(relation, block, NULL);
 	page = BufferGetPage(buffer);
 
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
@@ -8116,7 +8116,7 @@ heap_index_delete_tuples(Relation rel, TM_IndexDeleteOp *delstate)
 				UnlockReleaseBuffer(buf);
 
 			blkno = ItemPointerGetBlockNumber(htid);
-			buf = ReadBuffer(rel, blkno);
+			buf = ReadBuffer(rel, blkno, NULL);
 			nblocksaccessed++;
 			Assert(!delstate->bottomup ||
 				   nblocksaccessed <= BOTTOMUP_MAX_NBLOCKS);

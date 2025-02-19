@@ -966,7 +966,7 @@ gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
 		 * descend down to.
 		 */
 
-		buffer = ReadBuffer(indexrel, blkno);
+		buffer = ReadBuffer(indexrel, blkno, NULL);
 		LockBuffer(buffer, GIST_EXCLUSIVE);
 
 		page = (Page) BufferGetPage(buffer);
@@ -1029,7 +1029,7 @@ gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
 		 * We've reached a leaf page. Place the tuple here.
 		 */
 		Assert(level == 0);
-		buffer = ReadBuffer(indexrel, blkno);
+		buffer = ReadBuffer(indexrel, blkno, NULL);
 		LockBuffer(buffer, GIST_EXCLUSIVE);
 		gistbufferinginserttuples(buildstate, buffer, level,
 								  &itup, 1, InvalidOffsetNumber,
@@ -1102,7 +1102,7 @@ gistbufferinginserttuples(GISTBuildState *buildstate, Buffer buffer, int level,
 				ItemId		iid = PageGetItemId(page, off);
 				IndexTuple	idxtuple = (IndexTuple) PageGetItem(page, iid);
 				BlockNumber childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
-				Buffer		childbuf = ReadBuffer(buildstate->indexrel, childblkno);
+				Buffer		childbuf = ReadBuffer(buildstate->indexrel, childblkno, NULL);
 
 				LockBuffer(childbuf, GIST_SHARE);
 				gistMemorizeAllDownlinks(buildstate, childbuf);
@@ -1246,7 +1246,7 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
 		parent = *parentblkno;
 	}
 
-	buffer = ReadBuffer(buildstate->indexrel, parent);
+	buffer = ReadBuffer(buildstate->indexrel, parent, NULL);
 	page = BufferGetPage(buffer);
 	LockBuffer(buffer, GIST_EXCLUSIVE);
 	gistcheckpage(buildstate->indexrel, buffer);
@@ -1441,7 +1441,7 @@ gistGetMaxLevel(Relation index)
 		Page		page;
 		IndexTuple	itup;
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, NULL);
 
 		/*
 		 * There's no concurrent access during index build, so locking is just
