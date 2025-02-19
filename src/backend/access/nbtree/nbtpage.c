@@ -547,7 +547,6 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 		for (;;)
 		{
 
-			bool hit;
 			rootbuf = _bt_relandgetbuf(rel, rootbuf, rootblkno, BT_READ, &hit);
 			pgstat_count_buffer(rel, true, hit);
 			rootpage = BufferGetPage(rootbuf);
@@ -654,7 +653,6 @@ _bt_gettrueroot(Relation rel)
 
 	for (;;)
 	{
-		bool hit;
 		rootbuf = _bt_relandgetbuf(rel, rootbuf, rootblkno, BT_READ, &hit);
 		pgstat_count_buffer(rel, true, hit);
 		rootpage = BufferGetPage(rootbuf);
@@ -2597,7 +2595,6 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 		if (P_RIGHTMOST(opaque))
 		{
 			/* rightsib will be the only one left on the level */
-			bool hit;
 			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, &hit);
 			pgstat_count_buffer(rel, true, hit);
 			metapg = BufferGetPage(metabuf);
