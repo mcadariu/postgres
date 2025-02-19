@@ -183,7 +183,7 @@ initBloomState(BloomState *state, Relation index)
 
 		opts = MemoryContextAlloc(index->rd_indexcxt, sizeof(BloomOptions));
 
-		buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO);
+		buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO, NULL);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 		page = BufferGetPage(buffer);
@@ -362,7 +362,7 @@ BloomNewBuffer(Relation index)
 		if (blkno == InvalidBlockNumber)
 			break;
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, NULL);
 
 		/*
 		 * We have to guard against the possibility that someone else already
@@ -454,7 +454,7 @@ BloomInitMetapage(Relation index, ForkNumber forknum)
 	 * block number 0 (BLOOM_METAPAGE_BLKNO).  No need to hold the extension
 	 * lock because there cannot be concurrent inserters yet.
 	 */
-	metaBuffer = ReadBufferExtended(index, forknum, P_NEW, RBM_NORMAL, NULL);
+	metaBuffer = ReadBufferExtended(index, forknum, P_NEW, RBM_NORMAL, NULL, NULL);
 	LockBuffer(metaBuffer, BUFFER_LOCK_EXCLUSIVE);
 	Assert(BufferGetBlockNumber(metaBuffer) == BLOOM_METAPAGE_BLKNO);
 

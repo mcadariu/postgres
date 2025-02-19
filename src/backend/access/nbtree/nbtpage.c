@@ -22,6 +22,7 @@
  */
 #include "postgres.h"
 
+#include "pgstat.h"
 #include "access/nbtree.h"
 #include "access/nbtxlog.h"
 #include "access/tableam.h"
@@ -183,13 +184,17 @@ _bt_vacuum_needs_cleanup(Relation rel)
 	BTMetaPageData *metad;
 	uint32		btm_version;
 	BlockNumber prev_num_delpages;
+	bool        hit;
 
 	/*
 	 * Copy details from metapage to local variables quickly.
 	 *
 	 * Note that we deliberately avoid using cached version of metapage here.
 	 */
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+	
+	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ, &hit);
+	pgstat_count_buffer(rel, true, hit);
+
 	metapg = BufferGetPage(metabuf);
 	metad = BTPageGetMeta(metapg);
 	btm_version = metad->btm_version;
@@ -234,6 +239,7 @@ _bt_set_cleanup_info(Relation rel, BlockNumber num_delpages)
 	Buffer		metabuf;
 	Page		metapg;
 	BTMetaPageData *metad;
+	bool        hit;
 
 	/*
 	 * On-disk compatibility note: The btm_last_cleanup_num_delpages metapage
@@ -253,7 +259,9 @@ _bt_set_cleanup_info(Relation rel, BlockNumber num_delpages)
 	 * no longer used as of PostgreSQL 14.  We set it to -1.0 on rewrite, just
 	 * to be consistent.
 	 */
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+
+	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ, &hit);
+	pgstat_count_buffer(rel, true, hit);
 	metapg = BufferGetPage(metabuf);
 	metad = BTPageGetMeta(metapg);
 
@@ -350,6 +358,7 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 	BlockNumber rootblkno;
 	uint32		rootlevel;
 	BTMetaPageData *metad;
+	bool        hit;
 
 	Assert(access == BT_READ || heaprel != NULL);
 
@@ -373,7 +382,8 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 		Assert(rootblkno != P_NONE);
 		rootlevel = metad->btm_fastlevel;
 
-		rootbuf = _bt_getbuf(rel, rootblkno, BT_READ);
+		rootbuf = _bt_getbuf(rel, rootblkno, BT_READ, &hit);
+		pgstat_count_buffer(rel, true, hit);
 		rootpage = BufferGetPage(rootbuf);
 		rootopaque = BTPageGetOpaque(rootpage);
 
@@ -399,7 +409,8 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 		rel->rd_amcache = NULL;
 	}
 
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ, &hit);
+	pgstat_count_buffer(rel, true, hit);
 	metad = _bt_getmeta(rel, metabuf);
 
 	/* if no root page initialized yet, do it */
@@ -535,7 +546,10 @@ _bt_getroot(Relation rel, Relation heaprel, int access)
 
 		for (;;)
 		{
-			rootbuf = _bt_relandgetbuf(rel, rootbuf, rootblkno, BT_READ);
+
+			bool hit;
+			rootbuf = _bt_relandgetbuf(rel, rootbuf, rootblkno, BT_READ, &hit);
+			pgstat_count_buffer(rel, true, hit);
 			rootpage = BufferGetPage(rootbuf);
 			rootopaque = BTPageGetOpaque(rootpage);
 
@@ -588,6 +602,7 @@ _bt_gettrueroot(Relation rel)
 	BlockNumber rootblkno;
 	uint32		rootlevel;
 	BTMetaPageData *metad;
+	bool        hit;
 
 	/*
 	 * We don't try to use cached metapage data here, since (a) this path is
@@ -599,7 +614,8 @@ _bt_gettrueroot(Relation rel)
 		pfree(rel->rd_amcache);
 	rel->rd_amcache = NULL;
 
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ, &hit);
+	pgstat_count_buffer(rel, true, hit);
 	metapg = BufferGetPage(metabuf);
 	metaopaque = BTPageGetOpaque(metapg);
 	metad = BTPageGetMeta(metapg);
@@ -638,7 +654,9 @@ _bt_gettrueroot(Relation rel)
 
 	for (;;)
 	{
-		rootbuf = _bt_relandgetbuf(rel, rootbuf, rootblkno, BT_READ);
+		bool hit;
+		rootbuf = _bt_relandgetbuf(rel, rootbuf, rootblkno, BT_READ, &hit);
+		pgstat_count_buffer(rel, true, hit);
 		rootpage = BufferGetPage(rootbuf);
 		rootopaque = BTPageGetOpaque(rootpage);
 
@@ -679,8 +697,10 @@ _bt_getrootheight(Relation rel)
 	if (rel->rd_amcache == NULL)
 	{
 		Buffer		metabuf;
+		bool        hit;
 
-		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ, &hit);
+		pgstat_count_buffer(rel, true, hit);
 		metad = _bt_getmeta(rel, metabuf);
 
 		/*
@@ -743,8 +763,10 @@ _bt_metaversion(Relation rel, bool *heapkeyspace, bool *allequalimage)
 	if (rel->rd_amcache == NULL)
 	{
 		Buffer		metabuf;
+		bool        hit;
 
-		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ);
+		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_READ, &hit);
+		pgstat_count_buffer(rel, true, hit);
 		metad = _bt_getmeta(rel, metabuf);
 
 		/*
@@ -842,14 +864,14 @@ _bt_checkpage(Relation rel, Buffer buf)
  *		as _bt_lockbuf().
  */
 Buffer
-_bt_getbuf(Relation rel, BlockNumber blkno, int access)
+_bt_getbuf(Relation rel, BlockNumber blkno, int access, bool *hit)
 {
 	Buffer		buf;
 
 	Assert(BlockNumberIsValid(blkno));
 
 	/* Read an existing block of the relation */
-	buf = ReadBuffer(rel, blkno);
+	buf = ReadBuffer(rel, blkno, hit);
 	_bt_lockbuf(rel, buf, access);
 	_bt_checkpage(rel, buf);
 
@@ -903,7 +925,7 @@ _bt_allocbuf(Relation rel, Relation heaprel)
 		blkno = GetFreeIndexPage(rel);
 		if (blkno == InvalidBlockNumber)
 			break;
-		buf = ReadBuffer(rel, blkno);
+		buf = ReadBuffer(rel, blkno, NULL);
 		if (_bt_conditionallockbuf(rel, buf))
 		{
 			page = BufferGetPage(buf);
@@ -1000,14 +1022,15 @@ _bt_allocbuf(Relation rel, Relation heaprel)
  * is when the target page is the same one already in the buffer.
  */
 Buffer
-_bt_relandgetbuf(Relation rel, Buffer obuf, BlockNumber blkno, int access)
+_bt_relandgetbuf(Relation rel, Buffer obuf, BlockNumber blkno, int access, 
+				 bool *hit)
 {
 	Buffer		buf;
 
 	Assert(BlockNumberIsValid(blkno));
 	if (BufferIsValid(obuf))
 		_bt_unlockbuf(rel, obuf);
-	buf = ReleaseAndReadBuffer(obuf, rel, blkno);
+	buf = ReleaseAndReadBuffer(obuf, rel, blkno, hit);
 	_bt_lockbuf(rel, buf, access);
 
 	_bt_checkpage(rel, buf);
@@ -1703,7 +1726,7 @@ _bt_leftsib_splitflag(Relation rel, BlockNumber leftsib, BlockNumber target)
 	if (leftsib == P_NONE)
 		return false;
 
-	buf = _bt_getbuf(rel, leftsib, BT_READ);
+	buf = _bt_getbuf(rel, leftsib, BT_READ, NULL);
 	page = BufferGetPage(buf);
 	opaque = BTPageGetOpaque(page);
 
@@ -1758,7 +1781,7 @@ _bt_rightsib_halfdeadflag(Relation rel, BlockNumber leafrightsib)
 
 	Assert(leafrightsib != P_NONE);
 
-	buf = _bt_getbuf(rel, leafrightsib, BT_READ);
+	buf = _bt_getbuf(rel, leafrightsib, BT_READ, NULL);
 	page = BufferGetPage(buf);
 	opaque = BTPageGetOpaque(page);
 
@@ -2062,7 +2085,7 @@ _bt_pagedel(Relation rel, Buffer leafbuf, BTVacState *vstate)
 		if (!rightsib_empty)
 			break;
 
-		leafbuf = _bt_getbuf(rel, rightsib, BT_WRITE);
+		leafbuf = _bt_getbuf(rel, rightsib, BT_WRITE, NULL);
 	}
 }
 
@@ -2335,6 +2358,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	uint32		targetlevel;
 	IndexTuple	leafhikey;
 	BlockNumber leaftopparent;
+	bool        hit;
 
 	page = BufferGetPage(leafbuf);
 	opaque = BTPageGetOpaque(page);
@@ -2370,11 +2394,13 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	}
 	else
 	{
+		
 		/* Target is the internal page taken from leaf's top parent link */
 		Assert(target != leafblkno);
 
 		/* Fetch the block number of the target's left sibling */
-		buf = _bt_getbuf(rel, target, BT_READ);
+		buf = _bt_getbuf(rel, target, BT_READ, &hit);
+		pgstat_count_buffer(rel, true, hit);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 		leftsib = opaque->btpo_prev;
@@ -2401,7 +2427,7 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 		_bt_lockbuf(rel, leafbuf, BT_WRITE);
 	if (leftsib != P_NONE)
 	{
-		lbuf = _bt_getbuf(rel, leftsib, BT_WRITE);
+		lbuf = _bt_getbuf(rel, leftsib, BT_WRITE, NULL);
 		page = BufferGetPage(lbuf);
 		opaque = BTPageGetOpaque(page);
 		while (P_ISDELETED(opaque) || opaque->btpo_next != target)
@@ -2449,7 +2475,8 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 			CHECK_FOR_INTERRUPTS();
 
 			/* step right one page */
-			lbuf = _bt_getbuf(rel, leftsib, BT_WRITE);
+			lbuf = _bt_getbuf(rel, leftsib, BT_WRITE, &hit);
+			pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 			page = BufferGetPage(lbuf);
 			opaque = BTPageGetOpaque(page);
 		}
@@ -2513,7 +2540,8 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 	 * And next write-lock the (current) right sibling.
 	 */
 	rightsib = opaque->btpo_next;
-	rbuf = _bt_getbuf(rel, rightsib, BT_WRITE);
+	rbuf = _bt_getbuf(rel, rightsib, BT_WRITE, &hit);
+	pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 	page = BufferGetPage(rbuf);
 	opaque = BTPageGetOpaque(page);
 
@@ -2569,7 +2597,9 @@ _bt_unlink_halfdead_page(Relation rel, Buffer leafbuf, BlockNumber scanblkno,
 		if (P_RIGHTMOST(opaque))
 		{
 			/* rightsib will be the only one left on the level */
-			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+			bool hit;
+			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, &hit);
+			pgstat_count_buffer(rel, true, hit);
 			metapg = BufferGetPage(metabuf);
 			metad = BTPageGetMeta(metapg);
 

@@ -593,7 +593,8 @@ fsm_readbuf(Relation rel, FSMAddress addr, bool extend)
 			return InvalidBuffer;
 	}
 	else
-		buf = ReadBufferExtended(rel, FSM_FORKNUM, blkno, RBM_ZERO_ON_ERROR, NULL);
+		buf = ReadBufferExtended(rel, FSM_FORKNUM, blkno, RBM_ZERO_ON_ERROR, NULL,
+							     NULL);
 
 	/*
 	 * Initializing the page when needed is trickier than it looks, because of
