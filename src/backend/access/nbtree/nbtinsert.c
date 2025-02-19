@@ -2277,7 +2277,6 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 		BTMetaPageData *metad;
 
 		/* acquire lock on the metapage */
-		bool hit;
 		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, &hit);
 		pgstat_count_buffer(rel, true, hit);
 		metapg = BufferGetPage(metabuf);
