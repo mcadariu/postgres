@@ -18,6 +18,8 @@
 #ifndef LIBPQ_BE_H
 #define LIBPQ_BE_H
 
+#include "common/scram-common.h"
+
 #include <sys/time.h>
 #ifdef USE_OPENSSL
 #include <openssl/ssl.h>
@@ -182,6 +184,13 @@ typedef struct Port
 	int			tcp_user_timeout;
 
 	/*
+	 * SCRAM structures.
+	 */
+	uint8		scram_ClientKey[SCRAM_MAX_KEY_LEN];
+	uint8		scram_ServerKey[SCRAM_MAX_KEY_LEN];
+	bool		has_scram_keys; /* true if the above two are valid */
+
+	/*
 	 * GSSAPI structures.
 	 */
 #if defined(ENABLE_GSS) || defined(ENABLE_SSPI)
@@ -303,7 +312,7 @@ extern ssize_t be_tls_read(Port *port, void *ptr, size_t len, int *waitfor);
 /*
  * Write data to a secure connection.
  */
-extern ssize_t be_tls_write(Port *port, void *ptr, size_t len, int *waitfor);
+extern ssize_t be_tls_write(Port *port, const void *ptr, size_t len, int *waitfor);
 
 /*
  * Return information about the SSL connection.
@@ -343,7 +352,7 @@ extern bool be_gssapi_get_delegation(Port *port);
 
 /* Read and write to a GSSAPI-encrypted connection. */
 extern ssize_t be_gssapi_read(Port *port, void *ptr, size_t len);
-extern ssize_t be_gssapi_write(Port *port, void *ptr, size_t len);
+extern ssize_t be_gssapi_write(Port *port, const void *ptr, size_t len);
 #endif							/* ENABLE_GSS */
 
 extern PGDLLIMPORT ProtocolVersion FrontendProtocol;

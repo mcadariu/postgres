@@ -365,8 +365,7 @@ ExecReadyInterpretedExpr(ExprState *state)
 			return;
 		}
 		else if (step0 == EEOP_CASE_TESTVAL &&
-				 step1 == EEOP_FUNCEXPR_STRICT &&
-				 state->steps[0].d.casetest.value)
+				 step1 == EEOP_FUNCEXPR_STRICT)
 		{
 			state->evalfunc_private = ExecJustApplyFuncToCase;
 			return;
@@ -462,6 +461,8 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 	TupleTableSlot *innerslot;
 	TupleTableSlot *outerslot;
 	TupleTableSlot *scanslot;
+	TupleTableSlot *oldslot;
+	TupleTableSlot *newslot;
 
 	/*
 	 * This array has to be in the same order as enum ExprEvalOp.
@@ -472,16 +473,24 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_INNER_FETCHSOME,
 		&&CASE_EEOP_OUTER_FETCHSOME,
 		&&CASE_EEOP_SCAN_FETCHSOME,
+		&&CASE_EEOP_OLD_FETCHSOME,
+		&&CASE_EEOP_NEW_FETCHSOME,
 		&&CASE_EEOP_INNER_VAR,
 		&&CASE_EEOP_OUTER_VAR,
 		&&CASE_EEOP_SCAN_VAR,
+		&&CASE_EEOP_OLD_VAR,
+		&&CASE_EEOP_NEW_VAR,
 		&&CASE_EEOP_INNER_SYSVAR,
 		&&CASE_EEOP_OUTER_SYSVAR,
 		&&CASE_EEOP_SCAN_SYSVAR,
+		&&CASE_EEOP_OLD_SYSVAR,
+		&&CASE_EEOP_NEW_SYSVAR,
 		&&CASE_EEOP_WHOLEROW,
 		&&CASE_EEOP_ASSIGN_INNER_VAR,
 		&&CASE_EEOP_ASSIGN_OUTER_VAR,
 		&&CASE_EEOP_ASSIGN_SCAN_VAR,
+		&&CASE_EEOP_ASSIGN_OLD_VAR,
+		&&CASE_EEOP_ASSIGN_NEW_VAR,
 		&&CASE_EEOP_ASSIGN_TMP,
 		&&CASE_EEOP_ASSIGN_TMP_MAKE_RO,
 		&&CASE_EEOP_CONST,
@@ -514,6 +523,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_PARAM_CALLBACK,
 		&&CASE_EEOP_PARAM_SET,
 		&&CASE_EEOP_CASE_TESTVAL,
+		&&CASE_EEOP_CASE_TESTVAL_EXT,
 		&&CASE_EEOP_MAKE_READONLY,
 		&&CASE_EEOP_IOCOERCE,
 		&&CASE_EEOP_IOCOERCE_SAFE,
@@ -523,6 +533,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_SQLVALUEFUNCTION,
 		&&CASE_EEOP_CURRENTOFEXPR,
 		&&CASE_EEOP_NEXTVALUEEXPR,
+		&&CASE_EEOP_RETURNINGEXPR,
 		&&CASE_EEOP_ARRAYEXPR,
 		&&CASE_EEOP_ARRAYCOERCE,
 		&&CASE_EEOP_ROW,
@@ -537,6 +548,7 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		&&CASE_EEOP_SBSREF_ASSIGN,
 		&&CASE_EEOP_SBSREF_FETCH,
 		&&CASE_EEOP_DOMAIN_TESTVAL,
+		&&CASE_EEOP_DOMAIN_TESTVAL_EXT,
 		&&CASE_EEOP_DOMAIN_NOTNULL,
 		&&CASE_EEOP_DOMAIN_CHECK,
 		&&CASE_EEOP_HASHDATUM_SET_INITVAL,
@@ -591,6 +603,8 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 	innerslot = econtext->ecxt_innertuple;
 	outerslot = econtext->ecxt_outertuple;
 	scanslot = econtext->ecxt_scantuple;
+	oldslot = econtext->ecxt_oldtuple;
+	newslot = econtext->ecxt_newtuple;
 
 #if defined(EEO_USE_COMPUTED_GOTO)
 	EEO_DISPATCH();
@@ -626,6 +640,24 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			CheckOpSlotCompatibility(op, scanslot);
 
 			slot_getsomeattrs(scanslot, op->d.fetch.last_var);
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_OLD_FETCHSOME)
+		{
+			CheckOpSlotCompatibility(op, oldslot);
+
+			slot_getsomeattrs(oldslot, op->d.fetch.last_var);
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_NEW_FETCHSOME)
+		{
+			CheckOpSlotCompatibility(op, newslot);
+
+			slot_getsomeattrs(newslot, op->d.fetch.last_var);
 
 			EEO_NEXT();
 		}
@@ -673,6 +705,32 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			EEO_NEXT();
 		}
 
+		EEO_CASE(EEOP_OLD_VAR)
+		{
+			int			attnum = op->d.var.attnum;
+
+			/* See EEOP_INNER_VAR comments */
+
+			Assert(attnum >= 0 && attnum < oldslot->tts_nvalid);
+			*op->resvalue = oldslot->tts_values[attnum];
+			*op->resnull = oldslot->tts_isnull[attnum];
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_NEW_VAR)
+		{
+			int			attnum = op->d.var.attnum;
+
+			/* See EEOP_INNER_VAR comments */
+
+			Assert(attnum >= 0 && attnum < newslot->tts_nvalid);
+			*op->resvalue = newslot->tts_values[attnum];
+			*op->resnull = newslot->tts_isnull[attnum];
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_INNER_SYSVAR)
 		{
 			ExecEvalSysVar(state, op, econtext, innerslot);
@@ -688,6 +746,18 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		EEO_CASE(EEOP_SCAN_SYSVAR)
 		{
 			ExecEvalSysVar(state, op, econtext, scanslot);
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_OLD_SYSVAR)
+		{
+			ExecEvalSysVar(state, op, econtext, oldslot);
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_NEW_SYSVAR)
+		{
+			ExecEvalSysVar(state, op, econtext, newslot);
 			EEO_NEXT();
 		}
 
@@ -746,6 +816,40 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			Assert(resultnum >= 0 && resultnum < resultslot->tts_tupleDescriptor->natts);
 			resultslot->tts_values[resultnum] = scanslot->tts_values[attnum];
 			resultslot->tts_isnull[resultnum] = scanslot->tts_isnull[attnum];
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_ASSIGN_OLD_VAR)
+		{
+			int			resultnum = op->d.assign_var.resultnum;
+			int			attnum = op->d.assign_var.attnum;
+
+			/*
+			 * We do not need CheckVarSlotCompatibility here; that was taken
+			 * care of at compilation time.  But see EEOP_INNER_VAR comments.
+			 */
+			Assert(attnum >= 0 && attnum < oldslot->tts_nvalid);
+			Assert(resultnum >= 0 && resultnum < resultslot->tts_tupleDescriptor->natts);
+			resultslot->tts_values[resultnum] = oldslot->tts_values[attnum];
+			resultslot->tts_isnull[resultnum] = oldslot->tts_isnull[attnum];
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_ASSIGN_NEW_VAR)
+		{
+			int			resultnum = op->d.assign_var.resultnum;
+			int			attnum = op->d.assign_var.attnum;
+
+			/*
+			 * We do not need CheckVarSlotCompatibility here; that was taken
+			 * care of at compilation time.  But see EEOP_INNER_VAR comments.
+			 */
+			Assert(attnum >= 0 && attnum < newslot->tts_nvalid);
+			Assert(resultnum >= 0 && resultnum < resultslot->tts_tupleDescriptor->natts);
+			resultslot->tts_values[resultnum] = newslot->tts_values[attnum];
+			resultslot->tts_isnull[resultnum] = newslot->tts_isnull[attnum];
 
 			EEO_NEXT();
 		}
@@ -1170,44 +1274,16 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 
 		EEO_CASE(EEOP_CASE_TESTVAL)
 		{
-			/*
-			 * Normally upper parts of the expression tree have setup the
-			 * values to be returned here, but some parts of the system
-			 * currently misuse {caseValue,domainValue}_{datum,isNull} to set
-			 * run-time data.  So if no values have been set-up, use
-			 * ExprContext's.  This isn't pretty, but also not *that* ugly,
-			 * and this is unlikely to be performance sensitive enough to
-			 * worry about an extra branch.
-			 */
-			if (op->d.casetest.value)
-			{
-				*op->resvalue = *op->d.casetest.value;
-				*op->resnull = *op->d.casetest.isnull;
-			}
-			else
-			{
-				*op->resvalue = econtext->caseValue_datum;
-				*op->resnull = econtext->caseValue_isNull;
-			}
+			*op->resvalue = *op->d.casetest.value;
+			*op->resnull = *op->d.casetest.isnull;
 
 			EEO_NEXT();
 		}
 
-		EEO_CASE(EEOP_DOMAIN_TESTVAL)
+		EEO_CASE(EEOP_CASE_TESTVAL_EXT)
 		{
-			/*
-			 * See EEOP_CASE_TESTVAL comment.
-			 */
-			if (op->d.casetest.value)
-			{
-				*op->resvalue = *op->d.casetest.value;
-				*op->resnull = *op->d.casetest.isnull;
-			}
-			else
-			{
-				*op->resvalue = econtext->domainValue_datum;
-				*op->resnull = econtext->domainValue_isNull;
-			}
+			*op->resvalue = econtext->caseValue_datum;
+			*op->resnull = econtext->caseValue_isNull;
 
 			EEO_NEXT();
 		}
@@ -1438,6 +1514,23 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 			EEO_NEXT();
 		}
 
+		EEO_CASE(EEOP_RETURNINGEXPR)
+		{
+			/*
+			 * The next op actually evaluates the expression.  If the OLD/NEW
+			 * row doesn't exist, skip that and return NULL.
+			 */
+			if (state->flags & op->d.returningexpr.nullflag)
+			{
+				*op->resvalue = (Datum) 0;
+				*op->resnull = true;
+
+				EEO_JUMP(op->d.returningexpr.jumpdone);
+			}
+
+			EEO_NEXT();
+		}
+
 		EEO_CASE(EEOP_ARRAYEXPR)
 		{
 			/* too complex for an inline implementation */
@@ -1500,22 +1593,22 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		EEO_CASE(EEOP_ROWCOMPARE_FINAL)
 		{
 			int32		cmpresult = DatumGetInt32(*op->resvalue);
-			RowCompareType rctype = op->d.rowcompare_final.rctype;
+			CompareType cmptype = op->d.rowcompare_final.cmptype;
 
 			*op->resnull = false;
-			switch (rctype)
+			switch (cmptype)
 			{
 					/* EQ and NE cases aren't allowed here */
-				case ROWCOMPARE_LT:
+				case COMPARE_LT:
 					*op->resvalue = BoolGetDatum(cmpresult < 0);
 					break;
-				case ROWCOMPARE_LE:
+				case COMPARE_LE:
 					*op->resvalue = BoolGetDatum(cmpresult <= 0);
 					break;
-				case ROWCOMPARE_GE:
+				case COMPARE_GE:
 					*op->resvalue = BoolGetDatum(cmpresult >= 0);
 					break;
-				case ROWCOMPARE_GT:
+				case COMPARE_GT:
 					*op->resvalue = BoolGetDatum(cmpresult > 0);
 					break;
 				default:
@@ -1602,6 +1695,22 @@ ExecInterpExpr(ExprState *state, ExprContext *econtext, bool *isnull)
 		{
 			/* too complex for an inline implementation */
 			ExecEvalHashedScalarArrayOp(state, op, econtext);
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_DOMAIN_TESTVAL)
+		{
+			*op->resvalue = *op->d.casetest.value;
+			*op->resnull = *op->d.casetest.isnull;
+
+			EEO_NEXT();
+		}
+
+		EEO_CASE(EEOP_DOMAIN_TESTVAL_EXT)
+		{
+			*op->resvalue = econtext->domainValue_datum;
+			*op->resnull = econtext->domainValue_isNull;
 
 			EEO_NEXT();
 		}
@@ -2119,10 +2228,14 @@ CheckExprStillValid(ExprState *state, ExprContext *econtext)
 	TupleTableSlot *innerslot;
 	TupleTableSlot *outerslot;
 	TupleTableSlot *scanslot;
+	TupleTableSlot *oldslot;
+	TupleTableSlot *newslot;
 
 	innerslot = econtext->ecxt_innertuple;
 	outerslot = econtext->ecxt_outertuple;
 	scanslot = econtext->ecxt_scantuple;
+	oldslot = econtext->ecxt_oldtuple;
+	newslot = econtext->ecxt_newtuple;
 
 	for (int i = 0; i < state->steps_len; i++)
 	{
@@ -2151,6 +2264,22 @@ CheckExprStillValid(ExprState *state, ExprContext *econtext)
 					int			attnum = op->d.var.attnum;
 
 					CheckVarSlotCompatibility(scanslot, attnum + 1, op->d.var.vartype);
+					break;
+				}
+
+			case EEOP_OLD_VAR:
+				{
+					int			attnum = op->d.var.attnum;
+
+					CheckVarSlotCompatibility(oldslot, attnum + 1, op->d.var.vartype);
+					break;
+				}
+
+			case EEOP_NEW_VAR:
+				{
+					int			attnum = op->d.var.attnum;
+
+					CheckVarSlotCompatibility(newslot, attnum + 1, op->d.var.vartype);
 					break;
 				}
 			default:
@@ -2194,6 +2323,10 @@ CheckVarSlotCompatibility(TupleTableSlot *slot, int attnum, Oid vartype)
 				 attnum, slot_tupdesc->natts);
 
 		attr = TupleDescAttr(slot_tupdesc, attnum - 1);
+
+		/* Internal error: somebody forgot to expand it. */
+		if (attr->attgenerated == ATTRIBUTE_GENERATED_VIRTUAL)
+			elog(ERROR, "unexpected virtual generated column reference");
 
 		if (attr->attisdropped)
 			ereport(ERROR,
@@ -5113,7 +5246,7 @@ void
 ExecEvalWholeRowVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 {
 	Var		   *variable = op->d.wholerow.var;
-	TupleTableSlot *slot;
+	TupleTableSlot *slot = NULL;
 	TupleDesc	output_tupdesc;
 	MemoryContext oldcontext;
 	HeapTupleHeader dtuple;
@@ -5138,8 +5271,40 @@ ExecEvalWholeRowVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext)
 			/* INDEX_VAR is handled by default case */
 
 		default:
-			/* get the tuple from the relation being scanned */
-			slot = econtext->ecxt_scantuple;
+
+			/*
+			 * Get the tuple from the relation being scanned.
+			 *
+			 * By default, this uses the "scan" tuple slot, but a wholerow Var
+			 * in the RETURNING list may explicitly refer to OLD/NEW.  If the
+			 * OLD/NEW row doesn't exist, we just return NULL.
+			 */
+			switch (variable->varreturningtype)
+			{
+				case VAR_RETURNING_DEFAULT:
+					slot = econtext->ecxt_scantuple;
+					break;
+
+				case VAR_RETURNING_OLD:
+					if (state->flags & EEO_FLAG_OLD_IS_NULL)
+					{
+						*op->resvalue = (Datum) 0;
+						*op->resnull = true;
+						return;
+					}
+					slot = econtext->ecxt_oldtuple;
+					break;
+
+				case VAR_RETURNING_NEW:
+					if (state->flags & EEO_FLAG_NEW_IS_NULL)
+					{
+						*op->resvalue = (Datum) 0;
+						*op->resnull = true;
+						return;
+					}
+					slot = econtext->ecxt_newtuple;
+					break;
+			}
 			break;
 	}
 
@@ -5341,6 +5506,17 @@ ExecEvalSysVar(ExprState *state, ExprEvalStep *op, ExprContext *econtext,
 			   TupleTableSlot *slot)
 {
 	Datum		d;
+
+	/* OLD/NEW system attribute is NULL if OLD/NEW row is NULL */
+	if ((op->d.var.varreturningtype == VAR_RETURNING_OLD &&
+		 state->flags & EEO_FLAG_OLD_IS_NULL) ||
+		(op->d.var.varreturningtype == VAR_RETURNING_NEW &&
+		 state->flags & EEO_FLAG_NEW_IS_NULL))
+	{
+		*op->resvalue = (Datum) 0;
+		*op->resnull = true;
+		return;
+	}
 
 	/* slot_getsysattr has sufficient defenses against bad attnums */
 	d = slot_getsysattr(slot,
