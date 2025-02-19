@@ -277,10 +277,6 @@ extern void DropDatabaseBuffers(Oid dbid);
 
 extern bool BufferIsPermanent(Buffer buffer);
 extern XLogRecPtr BufferGetLSNAtomic(Buffer buffer);
-
-#ifdef NOT_USED
-extern void PrintPinnedBufs(void);
-#endif
 extern void BufferGetTag(Buffer buffer, RelFileLocator *rlocator,
 						 ForkNumber *forknum, BlockNumber *blknum);
 
@@ -390,7 +386,7 @@ BufferGetBlock(Buffer buffer)
 static inline Size
 BufferGetPageSize(Buffer buffer)
 {
-	AssertMacro(BufferIsValid(buffer));
+	Assert(BufferIsValid(buffer));
 	return (Size) BLCKSZ;
 }
 

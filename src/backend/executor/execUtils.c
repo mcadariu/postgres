@@ -118,6 +118,7 @@ CreateExecutorState(void)
 	estate->es_rowmarks = NULL;
 	estate->es_rteperminfos = NIL;
 	estate->es_plannedstmt = NULL;
+	estate->es_part_prune_infos = NIL;
 
 	estate->es_junkFilter = NULL;
 
@@ -325,7 +326,7 @@ CreateWorkExprContext(EState *estate)
 	Size		maxBlockSize = ALLOCSET_DEFAULT_MAXSIZE;
 
 	/* choose the maxBlockSize to be no larger than 1/16 of work_mem */
-	while (16 * maxBlockSize > work_mem * 1024L)
+	while (maxBlockSize > work_mem * (Size) 1024 / 16)
 		maxBlockSize >>= 1;
 
 	if (maxBlockSize < ALLOCSET_DEFAULT_INITSIZE)
@@ -770,7 +771,8 @@ ExecOpenScanRelation(EState *estate, Index scanrelid, int eflags)
  * indexed by rangetable index.
  */
 void
-ExecInitRangeTable(EState *estate, List *rangeTable, List *permInfos)
+ExecInitRangeTable(EState *estate, List *rangeTable, List *permInfos,
+				   Bitmapset *unpruned_relids)
 {
 	/* Remember the range table List as-is */
 	estate->es_range_table = rangeTable;
@@ -780,6 +782,15 @@ ExecInitRangeTable(EState *estate, List *rangeTable, List *permInfos)
 
 	/* Set size of associated arrays */
 	estate->es_range_table_size = list_length(rangeTable);
+
+	/*
+	 * Initialize the bitmapset of RT indexes (es_unpruned_relids)
+	 * representing relations that will be scanned during execution. This set
+	 * is initially populated by the caller and may be extended later by
+	 * ExecDoInitialPruning() to include RT indexes of unpruned leaf
+	 * partitions.
+	 */
+	estate->es_unpruned_relids = unpruned_relids;
 
 	/*
 	 * Allocate an array to store an open Relation corresponding to each
@@ -1243,6 +1254,34 @@ ExecGetReturningSlot(EState *estate, ResultRelInfo *relInfo)
 }
 
 /*
+ * Return a relInfo's all-NULL tuple slot for processing returning tuples.
+ *
+ * Note: this slot is intentionally filled with NULLs in every column, and
+ * should be considered read-only --- the caller must not update it.
+ */
+TupleTableSlot *
+ExecGetAllNullSlot(EState *estate, ResultRelInfo *relInfo)
+{
+	if (relInfo->ri_AllNullSlot == NULL)
+	{
+		Relation	rel = relInfo->ri_RelationDesc;
+		MemoryContext oldcontext = MemoryContextSwitchTo(estate->es_query_cxt);
+		TupleTableSlot *slot;
+
+		slot = ExecInitExtraTupleSlot(estate,
+									  RelationGetDescr(rel),
+									  table_slot_callbacks(rel));
+		ExecStoreAllNullTuple(slot);
+
+		relInfo->ri_AllNullSlot = slot;
+
+		MemoryContextSwitchTo(oldcontext);
+	}
+
+	return relInfo->ri_AllNullSlot;
+}
+
+/*
  * Return the map needed to convert given child result relation's tuples to
  * the rowtype of the query's main target ("root") relation.  Note that a
  * NULL result is valid and means that no conversion is needed.
@@ -1354,8 +1393,8 @@ Bitmapset *
 ExecGetExtraUpdatedCols(ResultRelInfo *relinfo, EState *estate)
 {
 	/* Compute the info if we didn't already */
-	if (relinfo->ri_GeneratedExprsU == NULL)
-		ExecInitStoredGenerated(relinfo, estate, CMD_UPDATE);
+	if (!relinfo->ri_extraUpdatedCols_valid)
+		ExecInitGenerated(relinfo, estate, CMD_UPDATE);
 	return relinfo->ri_extraUpdatedCols;
 }
 

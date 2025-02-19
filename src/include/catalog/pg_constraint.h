@@ -20,7 +20,7 @@
 
 #include "catalog/dependency.h"
 #include "catalog/genbki.h"
-#include "catalog/pg_constraint_d.h"
+#include "catalog/pg_constraint_d.h"	/* IWYU pragma: export */
 #include "nodes/pg_list.h"
 
 /* ----------------
@@ -290,7 +290,8 @@ extern void DeconstructFkConstraintRow(HeapTuple tuple, int *numfks,
 									   int *num_fk_del_set_cols, AttrNumber *fk_del_set_cols);
 extern void FindFKPeriodOpers(Oid opclass,
 							  Oid *containedbyoperoid,
-							  Oid *aggedcontainedbyoperoid);
+							  Oid *aggedcontainedbyoperoid,
+							  Oid *intersectoperoid);
 
 extern bool check_functional_grouping(Oid relid,
 									  Index varno, Index varlevelsup,

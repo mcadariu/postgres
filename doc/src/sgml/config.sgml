@@ -2506,8 +2506,8 @@ include_dir 'conf.d'
      </para>
     </sect2>
 
-    <sect2 id="runtime-config-resource-async-behavior">
-     <title>Asynchronous Behavior</title>
+    <sect2 id="runtime-config-resource-io">
+     <title>I/O</title>
 
      <variablelist>
       <varlistentry id="guc-backend-flush-after" xreflabel="backend_flush_after">
@@ -2618,7 +2618,13 @@ include_dir 'conf.d'
         </para>
        </listitem>
       </varlistentry>
+     </variablelist>
+    </sect2>
 
+    <sect2 id="runtime-config-resource-worker-processes">
+     <title>Worker Processes</title>
+
+     <variablelist>
       <varlistentry id="guc-max-worker-processes" xreflabel="max_worker_processes">
        <term><varname>max_worker_processes</varname> (<type>integer</type>)
        <indexterm>
@@ -4953,7 +4959,8 @@ ANY <replaceable class="parameter">num_sync</replaceable> ( <replaceable class="
        </para>
        <para>
         In logical replication, this parameter also limits how often a failing
-        replication apply worker will be respawned.
+        replication apply worker or table synchronization worker will be
+        respawned.
        </para>
       </listitem>
      </varlistentry>
@@ -8133,7 +8140,7 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
         various purposes.  The cluster name appears in the process title for
         all server processes in this cluster.  Moreover, it is the default
         application name for a standby connection (see <xref
-        linkend="guc-synchronous-standby-names"/>.)
+        linkend="guc-synchronous-standby-names"/>).
        </para>
 
        <para>
@@ -8239,6 +8246,33 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
         Enables collection of statistics on database activity.
         This parameter is on by default, because the autovacuum
         daemon needs the collected information.
+        Only superusers and users with the appropriate <literal>SET</literal>
+        privilege can change this setting.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry id="guc-track-cost-delay-timing" xreflabel="track_cost_delay_timing">
+      <term><varname>track_cost_delay_timing</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>track_cost_delay_timing</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Enables timing of cost-based vacuum delay (see
+        <xref linkend="runtime-config-resource-vacuum-cost"/>).  This parameter
+        is off by default, as it will repeatedly query the operating system for
+        the current time, which may cause significant overhead on some
+        platforms.  You can use the <xref linkend="pgtesttiming"/> tool to
+        measure the overhead of timing on your system.  Cost-based vacuum delay
+        timing information is displayed in
+        <link linkend="vacuum-progress-reporting"><structname>pg_stat_progress_vacuum</structname></link>,
+        <link linkend="analyze-progress-reporting"><structname>pg_stat_progress_analyze</structname></link>,
+        in the output of <xref linkend="sql-vacuum"/> when the
+        <literal>VERBOSE</literal> option is used, and by autovacuum for
+        auto-vacuums and auto-analyzes when
+        <xref linkend="guc-log-autovacuum-min-duration"/> is set.
         Only superusers and users with the appropriate <literal>SET</literal>
         privilege can change this setting.
        </para>
@@ -8684,6 +8718,30 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
        </listitem>
       </varlistentry>
 
+      <varlistentry id="guc-autovacuum-vacuum-max-threshold" xreflabel="autovacuum_vacuum_max_threshold">
+       <term><varname>autovacuum_vacuum_max_threshold</varname> (<type>integer</type>)
+       <indexterm>
+        <primary><varname>autovacuum_vacuum_max_threshold</varname></primary>
+        <secondary>configuration parameter</secondary>
+       </indexterm>
+       </term>
+       <listitem>
+        <para>
+         Specifies the maximum number of updated or deleted tuples needed to
+         trigger a <command>VACUUM</command> in any one table, i.e., a limit on
+         the value calculated with
+         <varname>autovacuum_vacuum_threshold</varname> and
+         <varname>autovacuum_vacuum_scale_factor</varname>.  The default is
+         100,000,000 tuples.  If -1 is specified, autovacuum will not enforce a
+         maximum number of updated or deleted tuples that will trigger a
+         <command>VACUUM</command> operation.  This parameter can only be set
+         in the <filename>postgresql.conf</filename> file or on the server
+         command line; but the setting can be overridden for individual tables
+         by changing storage parameters.
+        </para>
+       </listitem>
+      </varlistentry>
+
       <varlistentry id="guc-autovacuum-freeze-max-age" xreflabel="autovacuum_freeze_max_age">
        <term><varname>autovacuum_freeze_max_age</varname> (<type>integer</type>)
        <indexterm>
@@ -9115,6 +9173,45 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
         </para>
        </listitem>
       </varlistentry>
+
+     <varlistentry id="guc-vacuum-max-eager-freeze-failure-rate" xreflabel="vacuum_max_eager_freeze_failure_rate">
+      <term><varname>vacuum_max_eager_freeze_failure_rate</varname> (<type>floating point</type>)
+      <indexterm>
+       <primary><varname>vacuum_max_eager_freeze_failure_rate</varname> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        Specifies the maximum number of pages (as a fraction of total pages in
+        the relation) that <command>VACUUM</command> may scan and
+        <emphasis>fail</emphasis> to set all-frozen in the visibility map
+        before disabling eager scanning. A value of <literal>0</literal>
+        disables eager scanning altogether. The default is
+        <literal>0.03</literal> (3%).
+       </para>
+
+       <para>
+        Note that when eager scanning is enabled, successful page freezes do
+        not count against the cap on eager freeze failures. Successful page
+        freezes are capped internally at 20% of the all-visible but not
+        all-frozen pages in the relation. Capping successful page freezes helps
+        amortize the overhead across multiple normal vacuums and limits the
+        potential downside of wasted eager freezes of pages that are modified
+        again before the next aggressive vacuum.
+       </para>
+
+       <para>
+        This parameter can only be set in the
+        <filename>postgresql.conf</filename> file or on the server command
+        line; but the setting can be overridden for individual tables by
+        changing the
+        <link linkend="reloption-vacuum-max-eager-freeze-failure-rate">
+        corresponding table storage parameter</link>.
+        For more information on tuning vacuum's freezing behavior,
+        see <xref linkend="vacuum-for-wraparound"/>.
+       </para>
+      </listitem>
+     </varlistentry>
 
      </variablelist>
     </sect2>
@@ -10054,8 +10151,10 @@ SET XML OPTION { DOCUMENT | CONTENT };
       </term>
       <listitem>
        <para>
-        Sets the collection of time zone abbreviations that will be accepted
-        by the server for datetime input.  The default is <literal>'Default'</literal>,
+        Sets the collection of additional time zone abbreviations that
+        will be accepted by the server for datetime input (beyond any
+        abbreviations defined by the current <varname>TimeZone</varname>
+        setting).  The default is <literal>'Default'</literal>,
         which is a collection that works in most of the world; there are
         also <literal>'Australia'</literal> and <literal>'India'</literal>,
         and other collections can be defined for a particular installation.

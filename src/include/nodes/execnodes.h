@@ -74,11 +74,20 @@ typedef Datum (*ExprStateEvalFunc) (struct ExprState *expression,
 /* Bits in ExprState->flags (see also execExpr.h for private flag bits): */
 /* expression is for use with ExecQual() */
 #define EEO_FLAG_IS_QUAL					(1 << 0)
+/* expression refers to OLD table columns */
+#define EEO_FLAG_HAS_OLD					(1 << 1)
+/* expression refers to NEW table columns */
+#define EEO_FLAG_HAS_NEW					(1 << 2)
+/* OLD table row is NULL in RETURNING list */
+#define EEO_FLAG_OLD_IS_NULL				(1 << 3)
+/* NEW table row is NULL in RETURNING list */
+#define EEO_FLAG_NEW_IS_NULL				(1 << 4)
 
 typedef struct ExprState
 {
 	NodeTag		type;
 
+#define FIELDNO_EXPRSTATE_FLAGS 1
 	uint8		flags;			/* bitmask of EEO_FLAG_* bits, see above */
 
 	/*
@@ -290,6 +299,12 @@ typedef struct ExprContext
 #define FIELDNO_EXPRCONTEXT_DOMAINNULL 13
 	bool		domainValue_isNull;
 
+	/* Tuples that OLD/NEW Var nodes in RETURNING may refer to */
+#define FIELDNO_EXPRCONTEXT_OLDTUPLE 14
+	TupleTableSlot *ecxt_oldtuple;
+#define FIELDNO_EXPRCONTEXT_NEWTUPLE 15
+	TupleTableSlot *ecxt_newtuple;
+
 	/* Link to containing EState (NULL if a standalone ExprContext) */
 	struct EState *ecxt_estate;
 
@@ -475,6 +490,8 @@ typedef struct ResultRelInfo
 
 	/* For UPDATE, attnums of generated columns to be computed */
 	Bitmapset  *ri_extraUpdatedCols;
+	/* true if the above has been computed */
+	bool		ri_extraUpdatedCols_valid;
 
 	/* Projection to generate new tuple in an INSERT/UPDATE */
 	ProjectionInfo *ri_projectNew;
@@ -504,6 +521,7 @@ typedef struct ResultRelInfo
 	TupleTableSlot *ri_ReturningSlot;	/* for trigger output tuples */
 	TupleTableSlot *ri_TrigOldSlot; /* for a trigger's old tuple */
 	TupleTableSlot *ri_TrigNewSlot; /* for a trigger's new tuple */
+	TupleTableSlot *ri_AllNullSlot; /* for RETURNING OLD/NEW */
 
 	/* FDW callback functions, if foreign table */
 	struct FdwRoutine *ri_FdwRoutine;
@@ -639,6 +657,13 @@ typedef struct EState
 										 * ExecRowMarks, or NULL if none */
 	List	   *es_rteperminfos;	/* List of RTEPermissionInfo */
 	PlannedStmt *es_plannedstmt;	/* link to top of plan tree */
+	List	   *es_part_prune_infos;	/* List of PartitionPruneInfo */
+	List	   *es_part_prune_states;	/* List of PartitionPruneState */
+	List	   *es_part_prune_results;	/* List of Bitmapset */
+	Bitmapset  *es_unpruned_relids; /* PlannedStmt.unprunableRelids + RT
+									 * indexes of leaf partitions that survive
+									 * initial pruning; see
+									 * ExecDoInitialPruning() */
 	const char *es_sourceText;	/* Source text from QueryDesc */
 
 	JunkFilter *es_junkFilter;	/* top-level junk filter, if any */
@@ -806,9 +831,16 @@ typedef struct ExecAuxRowMark
  * point to tab_hash_expr and tab_eq_func respectively.
  * ----------------------------------------------------------------
  */
-typedef struct TupleHashEntryData TupleHashEntryData;
 typedef struct TupleHashEntryData *TupleHashEntry;
 typedef struct TupleHashTableData *TupleHashTable;
+
+typedef struct TupleHashEntryData
+{
+	MinimalTuple firstTuple;	/* copy of first tuple in this group */
+	void	   *additional;		/* user data */
+	uint32		status;			/* hash status */
+	uint32		hash;			/* hash value (cached) */
+} TupleHashEntryData;
 
 /* define parameters necessary to generate the tuple hash table interface */
 #define SH_PREFIX tuplehash
@@ -828,7 +860,6 @@ typedef struct TupleHashTableData
 	Oid		   *tab_collations; /* collations for hash and comparison */
 	MemoryContext tablecxt;		/* memory context containing table */
 	MemoryContext tempcxt;		/* context for function evaluations */
-	Size		additionalsize;	/* size of additional data */
 	TupleTableSlot *tableslot;	/* slot for referencing table entries */
 	/* The following fields are set transiently for each table search: */
 	TupleTableSlot *inputslot;	/* current input tuple's slot */
@@ -1415,6 +1446,12 @@ typedef struct ModifyTableState
 	double		mt_merge_inserted;
 	double		mt_merge_updated;
 	double		mt_merge_deleted;
+
+	/*
+	 * List of valid updateColnosLists.  Contains only those belonging to
+	 * unpruned relations from ModifyTable.updateColnosLists.
+	 */
+	List	   *mt_updateColnosLists;
 } ModifyTableState;
 
 /* ----------------

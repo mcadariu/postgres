@@ -264,6 +264,7 @@ BitmapAndState
 BitmapHeapPath
 BitmapHeapScan
 BitmapHeapScanInstrumentation
+BitmapHeapScanDesc
 BitmapHeapScanState
 BitmapIndexScan
 BitmapIndexScanState
@@ -384,6 +385,7 @@ CaseTestExpr
 CaseWhen
 Cash
 CastInfo
+CatCInProgress
 CatCList
 CatCTup
 CatCache
@@ -457,6 +459,7 @@ CommonEntry
 CommonTableExpr
 CompactAttribute
 CompareScalarsContext
+CompareType
 CompiledExprState
 CompositeIOData
 CompositeTypeStmt
@@ -1870,6 +1873,7 @@ PLpgSQL_rec
 PLpgSQL_recfield
 PLpgSQL_resolve_option
 PLpgSQL_row
+PLpgSQL_rwopt
 PLpgSQL_stmt
 PLpgSQL_stmt_assert
 PLpgSQL_stmt_assign
@@ -1983,6 +1987,7 @@ PX_Combo
 PX_HMAC
 PX_MD
 Page
+PageData
 PageGistNSN
 PageHeader
 PageHeaderData
@@ -2272,6 +2277,7 @@ PublicationPartOpt
 PublicationRelInfo
 PublicationSchemaInfo
 PublicationTable
+PublishGencolsType
 PullFilter
 PullFilterOps
 PushFilter
@@ -2477,6 +2483,10 @@ ResultRelInfo
 ResultState
 ReturnSetInfo
 ReturnStmt
+ReturningClause
+ReturningExpr
+ReturningOption
+ReturningOptionKind
 RevmapContents
 RevokeRoleGrantAction
 RewriteMappingDataEntry
@@ -2493,7 +2503,6 @@ RoleSpecType
 RoleStmtType
 RollupData
 RowCompareExpr
-RowCompareType
 RowExpr
 RowIdentityVarInfo
 RowMarkClause
@@ -2624,6 +2633,7 @@ SetOperation
 SetOperationStmt
 SetQuantifier
 SetToDefault
+SetVarReturningType_context
 SetupWorkerPtrType
 ShDependObjectInfo
 SharedAggInfo
@@ -2794,6 +2804,7 @@ SubscriptionRelState
 SummarizerReadLocalXLogPrivate
 SupportRequestCost
 SupportRequestIndexCondition
+SupportRequestModifyInPlace
 SupportRequestOptimizeWindowClause
 SupportRequestRows
 SupportRequestSelectivity
@@ -3030,6 +3041,7 @@ TypeCat
 TypeFuncClass
 TypeInfo
 TypeName
+TzAbbrevCache
 U32
 U8
 UChar
@@ -3085,6 +3097,7 @@ Var
 VarBit
 VarChar
 VarParamState
+VarReturningType
 VarString
 VarStringSortSupport
 Variable
@@ -3307,6 +3320,8 @@ amparallelrescan_function
 amproperty_function
 amrescan_function
 amrestrpos_function
+amtranslate_strategy_function amtranslatestrategy;
+amtranslate_cmptype_function amtranslatecmptype;
 amvacuumcleanup_function
 amvalidate_function
 array_iter
@@ -3401,6 +3416,7 @@ core_yy_extra_type
 core_yyscan_t
 corrupt_items
 cost_qual_eval_context
+count_param_references_context
 cp_hash_func
 create_upper_paths_hook_type
 createdb_failure_params
@@ -3696,6 +3712,9 @@ pam_handle_t
 parallel_worker_main_type
 parse_error_callback_arg
 partition_method_t
+pe_test_config
+pe_test_escape_func
+pe_test_vector
 pendingPosition
 pending_label
 pgParameterStatus
@@ -3745,6 +3764,7 @@ pg_sha256_ctx
 pg_sha384_ctx
 pg_sha512_ctx
 pg_snapshot
+pg_special_case
 pg_stack_base_t
 pg_time_t
 pg_time_usec_t
