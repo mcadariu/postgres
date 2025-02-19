@@ -3256,10 +3256,7 @@ heap_update(Relation relation, ItemPointer otid, HeapTuple newtup,
 	interesting_attrs = bms_add_members(interesting_attrs, id_attrs);
 
 	block = ItemPointerGetBlockNumber(otid);
-<<<<<<< HEAD
-=======
 	INJECTION_POINT("heap_update-before-pin");
->>>>>>> abba2d77e40e33ee39c9402a4b3d73d089fe0329
 	buffer = ReadBuffer(relation, block, NULL);
 	page = BufferGetPage(buffer);
 

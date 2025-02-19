@@ -1313,13 +1313,6 @@ lazy_scan_heap(LVRelState *vacrel)
 		 */
 		visibilitymap_pin(vacrel->rel, blkno, &vmbuffer);
 
-<<<<<<< HEAD
-		buf = ReadBufferExtended(vacrel->rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-								 vacrel->bstrategy, NULL);
-		page = BufferGetPage(buf);
-
-=======
->>>>>>> abba2d77e40e33ee39c9402a4b3d73d089fe0329
 		/*
 		 * We need a buffer cleanup lock to prune HOT chains and defragment
 		 * the page in lazy_scan_prune.  But when it's not possible to acquire
@@ -2766,11 +2759,6 @@ lazy_vacuum_heap_rel(LVRelState *vacrel)
 		visibilitymap_pin(vacrel->rel, blkno, &vmbuffer);
 
 		/* We need a non-cleanup exclusive lock to mark dead_items unused */
-<<<<<<< HEAD
-		buf = ReadBufferExtended(vacrel->rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-								 vacrel->bstrategy, NULL);
-=======
->>>>>>> abba2d77e40e33ee39c9402a4b3d73d089fe0329
 		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 		lazy_vacuum_heap_page(vacrel, blkno, buf, offsets,
 							  num_offsets, vmbuffer);
