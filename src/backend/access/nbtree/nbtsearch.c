@@ -310,7 +310,6 @@ _bt_moveright(Relation rel,
 		if (P_IGNORE(opaque) || _bt_compare(rel, key, page, P_HIKEY) >= cmpval)
 		{
 			/* step right one page */
-			bool hit;
 			buf = _bt_relandgetbuf(rel, buf, opaque->btpo_next, access, &hit);
 			pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 			continue;
