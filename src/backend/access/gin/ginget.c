@@ -1480,7 +1480,7 @@ scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
 				 * current page.  So, we lock next page before releasing the
 				 * current one
 				 */
-				Buffer		tmpbuf = ReadBuffer(scan->indexRelation, blkno);
+				Buffer		tmpbuf = ReadBuffer(scan->indexRelation, blkno, NULL);
 
 				LockBuffer(tmpbuf, GIN_SHARE);
 				UnlockReleaseBuffer(pos->pendingBuffer);
@@ -1827,7 +1827,8 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 				match;
 	int			i;
 	pendingPosition pos;
-	Buffer		metabuffer = ReadBuffer(scan->indexRelation, GIN_METAPAGE_BLKNO);
+	Buffer		metabuffer = ReadBuffer(scan->indexRelation, GIN_METAPAGE_BLKNO, 
+		                                NULL);
 	Page		page;
 	BlockNumber blkno;
 
@@ -1854,7 +1855,7 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 		return;
 	}
 
-	pos.pendingBuffer = ReadBuffer(scan->indexRelation, blkno);
+	pos.pendingBuffer = ReadBuffer(scan->indexRelation, blkno, NULL);
 	LockBuffer(pos.pendingBuffer, GIN_SHARE);
 	pos.firstOffset = FirstOffsetNumber;
 	UnlockReleaseBuffer(metabuffer);

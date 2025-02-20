@@ -1249,7 +1249,7 @@ bt_recheck_sibling_links(BtreeCheckState *state,
 
 		/* Couple locks in the usual order for nbtree:  Left to right */
 		lbuf = ReadBufferExtended(state->rel, MAIN_FORKNUM, leftcurrent,
-								  RBM_NORMAL, state->checkstrategy);
+								  RBM_NORMAL, state->checkstrategy, NULL);
 		LockBuffer(lbuf, BT_READ);
 		_bt_checkpage(state->rel, lbuf);
 		page = BufferGetPage(lbuf);
@@ -1257,7 +1257,7 @@ bt_recheck_sibling_links(BtreeCheckState *state,
 		if (P_ISDELETED(opaque))
 		{
 			/*
-			 * Cannot reason about concurrently deleted page -- the left link
+			 * Cannot reason about concurrently deleted page -- the left lik
 			 * in the page to the right is expected to point to some other
 			 * page to the left (not leftcurrent page).
 			 *
@@ -1273,7 +1273,7 @@ bt_recheck_sibling_links(BtreeCheckState *state,
 		{
 			newtargetbuf = ReadBufferExtended(state->rel, MAIN_FORKNUM,
 											  newtargetblock, RBM_NORMAL,
-											  state->checkstrategy);
+											  state->checkstrategy, NULL);
 			LockBuffer(newtargetbuf, BT_READ);
 			_bt_checkpage(state->rel, newtargetbuf);
 			page = BufferGetPage(newtargetbuf);
@@ -3440,7 +3440,7 @@ palloc_btree_page(BtreeCheckState *state, BlockNumber blocknum)
 	 * longer than we must.
 	 */
 	buffer = ReadBufferExtended(state->rel, MAIN_FORKNUM, blocknum, RBM_NORMAL,
-								state->checkstrategy);
+								state->checkstrategy, NULL);
 	LockBuffer(buffer, BT_READ);
 
 	/*

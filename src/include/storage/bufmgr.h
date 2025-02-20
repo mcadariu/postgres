@@ -201,10 +201,10 @@ extern PrefetchBufferResult PrefetchBuffer(Relation reln, ForkNumber forkNum,
 										   BlockNumber blockNum);
 extern bool ReadRecentBuffer(RelFileLocator rlocator, ForkNumber forkNum,
 							 BlockNumber blockNum, Buffer recent_buffer);
-extern Buffer ReadBuffer(Relation reln, BlockNumber blockNum);
+extern Buffer ReadBuffer(Relation reln, BlockNumber blockNum, bool *hit);
 extern Buffer ReadBufferExtended(Relation reln, ForkNumber forkNum,
 								 BlockNumber blockNum, ReadBufferMode mode,
-								 BufferAccessStrategy strategy);
+								 BufferAccessStrategy strategy, bool *hit);
 extern Buffer ReadBufferWithoutRelcache(RelFileLocator rlocator,
 										ForkNumber forkNum, BlockNumber blockNum,
 										ReadBufferMode mode, BufferAccessStrategy strategy,
@@ -213,12 +213,14 @@ extern Buffer ReadBufferWithoutRelcache(RelFileLocator rlocator,
 extern bool StartReadBuffer(ReadBuffersOperation *operation,
 							Buffer *buffer,
 							BlockNumber blocknum,
-							int flags);
+							int flags,
+						    bool *hit);
 extern bool StartReadBuffers(ReadBuffersOperation *operation,
 							 Buffer *buffers,
 							 BlockNumber blockNum,
 							 int *nblocks,
-							 int flags);
+							 int flags,
+							 bool *hit);
 extern void WaitReadBuffers(ReadBuffersOperation *operation);
 
 extern void ReleaseBuffer(Buffer buffer);
@@ -229,7 +231,7 @@ extern void MarkBufferDirty(Buffer buffer);
 extern void IncrBufferRefCount(Buffer buffer);
 extern void CheckBufferIsPinnedOnce(Buffer buffer);
 extern Buffer ReleaseAndReadBuffer(Buffer buffer, Relation relation,
-								   BlockNumber blockNum);
+								   BlockNumber blockNum, bool *hit);
 
 extern Buffer ExtendBufferedRel(BufferManagerRelation bmr,
 								ForkNumber forkNum,
