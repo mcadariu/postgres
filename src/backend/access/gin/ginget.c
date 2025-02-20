@@ -18,6 +18,7 @@
 #include "access/relscan.h"
 #include "common/pg_prng.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "storage/predicate.h"
 #include "utils/datum.h"
 #include "utils/memutils.h"
@@ -1467,6 +1468,7 @@ scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
 	OffsetNumber maxoff;
 	Page		page;
 	IndexTuple	itup;
+	bool        hit;
 
 	ItemPointerSetInvalid(&pos->item);
 	for (;;)
@@ -1493,7 +1495,8 @@ scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
 				 * current page.  So, we lock next page before releasing the
 				 * current one
 				 */
-				Buffer		tmpbuf = ReadBuffer(scan->indexRelation, blkno);
+				Buffer		tmpbuf = ReadBuffer(scan->indexRelation, blkno, &hit);
+				pgstat_count_record_buffer(scan->indexRelation, hit);
 
 				LockBuffer(tmpbuf, GIN_SHARE);
 				UnlockReleaseBuffer(pos->pendingBuffer);
@@ -1840,9 +1843,12 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 				match;
 	int			i;
 	pendingPosition pos;
-	Buffer		metabuffer = ReadBuffer(scan->indexRelation, GIN_METAPAGE_BLKNO);
+	bool        hit;
+	Buffer		metabuffer = ReadBuffer(scan->indexRelation, GIN_METAPAGE_BLKNO, &hit);
 	Page		page;
 	BlockNumber blkno;
+
+	pgstat_count_metadata_buffer(scan->indexRelation, hit);
 
 	*ntids = 0;
 
@@ -1867,7 +1873,8 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 		return;
 	}
 
-	pos.pendingBuffer = ReadBuffer(scan->indexRelation, blkno);
+	pos.pendingBuffer = ReadBuffer(scan->indexRelation, blkno, &hit);
+	pgstat_count_record_buffer(scan->indexRelation, hit);
 	LockBuffer(pos.pendingBuffer, GIN_SHARE);
 	pos.firstOffset = FirstOffsetNumber;
 	UnlockReleaseBuffer(metabuffer);

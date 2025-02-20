@@ -846,16 +846,17 @@ redirect:
 			OffsetNumber offset = ItemPointerGetOffsetNumber(&item->heapPtr);
 			Page		page;
 			bool		isnull;
+			bool        hit;
 
 			if (buffer == InvalidBuffer)
 			{
-				buffer = ReadBuffer(index, blkno);
+				buffer = ReadBuffer(index, blkno, &hit);
 				LockBuffer(buffer, BUFFER_LOCK_SHARE);
 			}
 			else if (blkno != BufferGetBlockNumber(buffer))
 			{
 				UnlockReleaseBuffer(buffer);
-				buffer = ReadBuffer(index, blkno);
+				buffer = ReadBuffer(index, blkno, &hit);
 				LockBuffer(buffer, BUFFER_LOCK_SHARE);
 			}
 
@@ -869,6 +870,8 @@ redirect:
 			{
 				/* Page is a leaf - that is, all its tuples are heap items */
 				OffsetNumber max = PageGetMaxOffsetNumber(page);
+
+				pgstat_count_record_buffer(index, hit);
 
 				if (SpGistBlockIsRoot(blkno))
 				{
@@ -896,6 +899,8 @@ redirect:
 			{
 				SpGistInnerTuple innerTuple = (SpGistInnerTuple)
 					PageGetItem(page, PageGetItemId(page, offset));
+
+				pgstat_count_metadata_buffer(index, hit);
 
 				if (innerTuple->tupstate != SPGIST_LIVE)
 				{

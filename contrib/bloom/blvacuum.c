@@ -60,7 +60,7 @@ blbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 		vacuum_delay_point(false);
 
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, NULL);
 
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 		gxlogState = GenericXLogStart(index);
@@ -139,7 +139,7 @@ blbulkdelete(IndexVacuumInfo *info, IndexBulkDeleteResult *stats,
 	 * info could already be out of date at this point, but blinsert() will
 	 * cope if so.
 	 */
-	buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO);
+	buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO, NULL);
 	LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 
 	gxlogState = GenericXLogStart(index);
@@ -190,7 +190,7 @@ blvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 		vacuum_delay_point(false);
 
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, NULL);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 		page = (Page) BufferGetPage(buffer);
 
