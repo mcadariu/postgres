@@ -329,7 +329,8 @@ read_stream_start_pending_read(ReadStream *stream)
 								 &stream->buffers[buffer_index],
 								 stream->pending_read_blocknum,
 								 &nblocks,
-								 flags);
+								 flags,
+								 NULL);
 	stream->pinned_buffers += nblocks;
 
 	/* Remember whether we need to wait before returning this buffer. */
@@ -793,7 +794,8 @@ read_stream_next_buffer(ReadStream *stream, void **per_buffer_data)
 										&stream->buffers[oldest_buffer_index],
 										next_blocknum,
 										stream->advice_enabled ?
-										READ_BUFFERS_ISSUE_ADVICE : 0)))
+										READ_BUFFERS_ISSUE_ADVICE : 0,
+										NULL)))
 			{
 				/* Fast return. */
 				return buffer;

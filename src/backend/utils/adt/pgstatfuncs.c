@@ -67,6 +67,18 @@ PG_STAT_GET_RELENTRY_INT64(blocks_fetched)
 /* pg_stat_get_blocks_hit */
 PG_STAT_GET_RELENTRY_INT64(blocks_hit)
 
+/* pg_stat_get_metadata_blocks_fetched */
+PG_STAT_GET_RELENTRY_INT64(metadata_blocks_fetched)
+
+/* pg_stat_get_metadata_blocks_hit */
+PG_STAT_GET_RELENTRY_INT64(metadata_blocks_hit)
+
+/* pg_stat_get_record_blocks_fetched */
+PG_STAT_GET_RELENTRY_INT64(record_blocks_fetched)
+
+/* pg_stat_get_record_blocks_hit */
+PG_STAT_GET_RELENTRY_INT64(record_blocks_hit)
+
 /* pg_stat_get_dead_tuples */
 PG_STAT_GET_RELENTRY_INT64(dead_tuples)
 
@@ -1033,6 +1045,18 @@ PG_STAT_GET_DBENTRY_INT64(blocks_fetched)
 
 /* pg_stat_get_db_blocks_hit */
 PG_STAT_GET_DBENTRY_INT64(blocks_hit)
+
+/* pg_stat_get_db_metadata_blocks_fetched */
+PG_STAT_GET_DBENTRY_INT64(metadata_blocks_fetched)
+
+/* pg_stat_get_db_metadata_blocks_hit */
+PG_STAT_GET_DBENTRY_INT64(metadata_blocks_hit)
+
+/* pg_stat_get_db_record_blocks_fetched */
+PG_STAT_GET_DBENTRY_INT64(record_blocks_fetched)
+
+/* pg_stat_get_db_record_blocks_hit */
+PG_STAT_GET_DBENTRY_INT64(record_blocks_hit)
 
 /* pg_stat_get_db_conflict_bufferpin */
 PG_STAT_GET_DBENTRY_INT64(conflict_bufferpin)
