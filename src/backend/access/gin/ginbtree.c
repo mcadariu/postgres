@@ -87,7 +87,7 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 
 	stack = (GinBtreeStack *) palloc(sizeof(GinBtreeStack));
 	stack->blkno = btree->rootBlkno;
-	stack->buffer = ReadBuffer(btree->index, btree->rootBlkno);
+	stack->buffer = ReadBuffer(btree->index, btree->rootBlkno, NULL);
 	stack->parent = NULL;
 	stack->predictNumber = 1;
 
@@ -148,7 +148,8 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 		{
 			/* in search mode we may forget path to leaf */
 			stack->blkno = child;
-			stack->buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, stack->blkno);
+			stack->buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, stack->blkno,
+												 NULL);
 		}
 		else
 		{
@@ -157,7 +158,7 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 			ptr->parent = stack;
 			stack = ptr;
 			stack->blkno = child;
-			stack->buffer = ReadBuffer(btree->index, stack->blkno);
+			stack->buffer = ReadBuffer(btree->index, stack->blkno, NULL);
 			stack->predictNumber = 1;
 		}
 	}
@@ -182,7 +183,7 @@ ginStepRight(Buffer buffer, Relation index, int lockmode)
 	bool		isData = GinPageIsData(page);
 	BlockNumber blkno = GinPageGetOpaque(page)->rightlink;
 
-	nextbuffer = ReadBuffer(index, blkno);
+	nextbuffer = ReadBuffer(index, blkno, NULL);
 	LockBuffer(nextbuffer, lockmode);
 	UnlockReleaseBuffer(buffer);
 
@@ -314,7 +315,7 @@ ginFindParents(GinBtree btree, GinBtreeStack *stack)
 
 		/* Descend down to next level */
 		blkno = leftmostBlkno;
-		buffer = ReadBuffer(btree->index, blkno);
+		buffer = ReadBuffer(btree->index, blkno, NULL);
 	}
 }
 

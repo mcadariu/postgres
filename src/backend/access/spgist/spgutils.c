@@ -269,7 +269,7 @@ spgGetCache(Relation index)
 			Buffer		metabuffer;
 			SpGistMetaPageData *metadata;
 
-			metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO);
+			metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO, NULL);
 			LockBuffer(metabuffer, BUFFER_LOCK_SHARE);
 
 			metadata = SpGistPageGetMeta(BufferGetPage(metabuffer));
@@ -409,7 +409,7 @@ SpGistNewBuffer(Relation index)
 		if (SpGistBlockIsFixed(blkno))
 			continue;
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, NULL);
 
 		/*
 		 * We have to guard against the possibility that someone else already
@@ -454,7 +454,7 @@ SpGistUpdateMetaPage(Relation index)
 	{
 		Buffer		metabuffer;
 
-		metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO);
+		metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO, NULL);
 
 		if (ConditionalLockBuffer(metabuffer))
 		{
@@ -603,7 +603,7 @@ SpGistGetBuffer(Relation index, int flags, int needSpace, bool *isNew)
 		Buffer		buffer;
 		Page		page;
 
-		buffer = ReadBuffer(index, lup->blkno);
+		buffer = ReadBuffer(index, lup->blkno, NULL);
 
 		if (!ConditionalLockBuffer(buffer))
 		{
