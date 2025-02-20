@@ -2065,13 +2065,13 @@ spgdoinsert(Relation index, SpGistState *state,
 		else if (parent.buffer == InvalidBuffer)
 		{
 			/* we hold no parent-page lock, so no deadlock is possible */
-			current.buffer = ReadBuffer(index, current.blkno);
+			current.buffer = ReadBuffer(index, current.blkno, NULL);
 			LockBuffer(current.buffer, BUFFER_LOCK_EXCLUSIVE);
 		}
 		else if (current.blkno != parent.blkno)
 		{
 			/* descend to a new child page */
-			current.buffer = ReadBuffer(index, current.blkno);
+			current.buffer = ReadBuffer(index, current.blkno, NULL);
 
 			/*
 			 * Attempt to acquire lock on child page.  We must beware of
