@@ -93,7 +93,7 @@ ReadBufferBI(Relation relation, BlockNumber targetBlock,
 	/* If not bulk-insert, exactly like ReadBuffer */
 	if (!bistate)
 		return ReadBufferExtended(relation, MAIN_FORKNUM, targetBlock,
-								  mode, NULL);
+								  mode, NULL, NULL);
 
 	/* If we have the desired block already pinned, re-pin and return it */
 	if (bistate->current_buf != InvalidBuffer)
@@ -117,7 +117,7 @@ ReadBufferBI(Relation relation, BlockNumber targetBlock,
 
 	/* Perform a read using the buffer strategy */
 	buffer = ReadBufferExtended(relation, MAIN_FORKNUM, targetBlock,
-								mode, bistate->strategy);
+								mode, bistate->strategy, NULL);
 
 	/* Save the selected block as target for future inserts */
 	IncrBufferRefCount(buffer);
@@ -640,7 +640,7 @@ loop:
 		else if (otherBlock < targetBlock)
 		{
 			/* lock other buffer first */
-			buffer = ReadBuffer(relation, targetBlock);
+			buffer = ReadBuffer(relation, targetBlock, NULL);
 			if (PageIsAllVisible(BufferGetPage(buffer)))
 				visibilitymap_pin(relation, targetBlock, vmbuffer);
 			LockBuffer(otherBuffer, BUFFER_LOCK_EXCLUSIVE);
@@ -649,7 +649,7 @@ loop:
 		else
 		{
 			/* lock target buffer first */
-			buffer = ReadBuffer(relation, targetBlock);
+			buffer = ReadBuffer(relation, targetBlock, NULL);
 			if (PageIsAllVisible(BufferGetPage(buffer)))
 				visibilitymap_pin(relation, targetBlock, vmbuffer);
 			LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
