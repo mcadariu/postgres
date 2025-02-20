@@ -125,7 +125,7 @@ blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 		Page		page;
 
 		buffer = ReadBufferExtended(scan->indexRelation, MAIN_FORKNUM,
-									blkno, RBM_NORMAL, bas);
+									blkno, RBM_NORMAL, bas, NULL);
 
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 		page = BufferGetPage(buffer);

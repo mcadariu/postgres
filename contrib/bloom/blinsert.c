@@ -201,7 +201,7 @@ blinsert(Relation index, Datum *values, bool *isnull,
 	 * At first, try to insert new tuple to the first page in notFullPage
 	 * array.  If successful, we don't need to modify the meta page.
 	 */
-	metaBuffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO);
+	metaBuffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO, NULL);
 	LockBuffer(metaBuffer, BUFFER_LOCK_SHARE);
 	metaData = BloomPageGetMeta(BufferGetPage(metaBuffer));
 
@@ -213,7 +213,7 @@ blinsert(Relation index, Datum *values, bool *isnull,
 		/* Don't hold metabuffer lock while doing insert */
 		LockBuffer(metaBuffer, BUFFER_LOCK_UNLOCK);
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, NULL);
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 
 		state = GenericXLogStart(index);
@@ -280,7 +280,7 @@ blinsert(Relation index, Datum *values, bool *isnull,
 		blkno = metaData->notFullPage[nStart];
 		Assert(blkno != InvalidBlockNumber);
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, NULL);
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 		page = GenericXLogRegisterBuffer(state, buffer, 0);
 

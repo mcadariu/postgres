@@ -49,7 +49,7 @@ gistkillitems(IndexScanDesc scan)
 	Assert(!XLogRecPtrIsInvalid(so->curPageLSN));
 	Assert(so->killedItems != NULL);
 
-	buffer = ReadBuffer(scan->indexRelation, so->curBlkno);
+	buffer = ReadBuffer(scan->indexRelation, so->curBlkno, NULL);
 	if (!BufferIsValid(buffer))
 		return;
 
@@ -340,7 +340,7 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 
 	Assert(!GISTSearchItemIsHeap(*pageItem));
 
-	buffer = ReadBuffer(scan->indexRelation, pageItem->blkno);
+	buffer = ReadBuffer(scan->indexRelation, pageItem->blkno, NULL);
 	LockBuffer(buffer, GIST_SHARE);
 	PredicateLockPage(r, BufferGetBlockNumber(buffer), scan->xs_snapshot);
 	gistcheckpage(scan->indexRelation, buffer);

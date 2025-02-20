@@ -74,7 +74,7 @@ brinRevmapInitialize(Relation idxrel, BlockNumber *pagesPerRange)
 	BrinMetaPageData *metadata;
 	Page		page;
 
-	meta = ReadBuffer(idxrel, BRIN_METAPAGE_BLKNO);
+	meta = ReadBuffer(idxrel, BRIN_METAPAGE_BLKNO, NULL);
 	LockBuffer(meta, BUFFER_LOCK_SHARE);
 	page = BufferGetPage(meta);
 	metadata = (BrinMetaPageData *) PageGetContents(page);
@@ -231,7 +231,7 @@ brinGetTupleForHeapBlock(BrinRevmap *revmap, BlockNumber heapBlk,
 				ReleaseBuffer(revmap->rm_currBuf);
 
 			Assert(mapBlk != InvalidBlockNumber);
-			revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk);
+			revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk, NULL);
 		}
 
 		LockBuffer(revmap->rm_currBuf, BUFFER_LOCK_SHARE);
@@ -269,7 +269,7 @@ brinGetTupleForHeapBlock(BrinRevmap *revmap, BlockNumber heapBlk,
 		{
 			if (BufferIsValid(*buf))
 				ReleaseBuffer(*buf);
-			*buf = ReadBuffer(idxRel, blk);
+			*buf = ReadBuffer(idxRel, blk, NULL);
 		}
 		LockBuffer(*buf, mode);
 		page = BufferGetPage(*buf);
@@ -363,7 +363,7 @@ brinRevmapDesummarizeRange(Relation idxrel, BlockNumber heapBlk)
 		return true;
 	}
 
-	regBuf = ReadBuffer(idxrel, ItemPointerGetBlockNumber(iptr));
+	regBuf = ReadBuffer(idxrel, ItemPointerGetBlockNumber(iptr), NULL);
 	LockBuffer(regBuf, BUFFER_LOCK_EXCLUSIVE);
 	regPg = BufferGetPage(regBuf);
 
@@ -485,7 +485,7 @@ revmap_get_buffer(BrinRevmap *revmap, BlockNumber heapBlk)
 		if (revmap->rm_currBuf != InvalidBuffer)
 			ReleaseBuffer(revmap->rm_currBuf);
 
-		revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk);
+		revmap->rm_currBuf = ReadBuffer(revmap->rm_irel, mapBlk, NULL);
 	}
 
 	return revmap->rm_currBuf;
@@ -553,7 +553,7 @@ revmap_physical_extend(BrinRevmap *revmap)
 	nblocks = RelationGetNumberOfBlocks(irel);
 	if (mapBlk < nblocks)
 	{
-		buf = ReadBuffer(irel, mapBlk);
+		buf = ReadBuffer(irel, mapBlk, NULL);
 		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 		page = BufferGetPage(buf);
 	}
