@@ -21,6 +21,7 @@
 #include "commands/vacuum.h"
 #include "miscadmin.h"
 #include "nodes/execnodes.h"
+#include "pgstat.h"
 #include "storage/predicate.h"
 #include "utils/fmgrprotos.h"
 #include "utils/index_selfuncs.h"
@@ -645,6 +646,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 	GISTInsertStack *stack;
 	GISTInsertState state;
 	bool		xlocked = false;
+	bool        hit;
 
 	memset(&state, 0, sizeof(GISTInsertState));
 	state.freespace = freespace;
@@ -683,8 +685,11 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 			state.stack = stack = stack->parent;
 		}
 
-		if (XLogRecPtrIsInvalid(stack->lsn))
-			stack->buffer = ReadBuffer(state.r, stack->blkno);
+		if (XLogRecPtrIsInvalid(stack->lsn)) {
+			stack->buffer = ReadBuffer(state.r, stack->blkno, &hit);
+			pgstat_count_record_buffer(state.r, hit);
+		}
+			
 
 		/*
 		 * Be optimistic and grab shared lock first. Swap it for an exclusive
@@ -923,6 +928,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 	GISTInsertStack *top,
 			   *ptr;
 	BlockNumber blkno;
+	bool        hit;
 
 	top = (GISTInsertStack *) palloc0(sizeof(GISTInsertStack));
 	top->blkno = GIST_ROOT_BLKNO;
@@ -935,7 +941,8 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 		top = linitial(fifo);
 		fifo = list_delete_first(fifo);
 
-		buffer = ReadBuffer(r, top->blkno);
+		buffer = ReadBuffer(r, top->blkno, &hit);
+		pgstat_count_record_buffer(r, hit);
 		LockBuffer(buffer, GIST_SHARE);
 		gistcheckpage(r, buffer);
 		page = (Page) BufferGetPage(buffer);
@@ -1031,6 +1038,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 	IndexTuple	idxtuple;
 	OffsetNumber maxoff;
 	GISTInsertStack *ptr;
+	bool         hit;
 
 	gistcheckpage(r, parent->buffer);
 	parent->page = (Page) BufferGetPage(parent->buffer);
@@ -1088,7 +1096,8 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 			 */
 			break;
 		}
-		parent->buffer = ReadBuffer(r, parent->blkno);
+		parent->buffer = ReadBuffer(r, parent->blkno, &hit);
+		pgstat_count_record_buffer(r, hit);
 		LockBuffer(parent->buffer, GIST_EXCLUSIVE);
 		gistcheckpage(r, parent->buffer);
 		parent->page = (Page) BufferGetPage(parent->buffer);
@@ -1113,7 +1122,8 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 	/* note we don't lock them or gistcheckpage them here! */
 	while (ptr)
 	{
-		ptr->buffer = ReadBuffer(r, ptr->blkno);
+		ptr->buffer = ReadBuffer(r, ptr->blkno, &hit);
+		pgstat_count_record_buffer(r, hit);
 		ptr->page = (Page) BufferGetPage(ptr->buffer);
 		ptr = ptr->parent;
 	}
@@ -1196,6 +1206,7 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 	Buffer		buf;
 	Page		page;
 	List	   *splitinfo = NIL;
+	bool        hit;
 
 	ereport(LOG,
 			(errmsg("fixing incomplete split in index \"%s\", block %u",
@@ -1228,7 +1239,8 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 		if (GistFollowRight(page))
 		{
 			/* lock next page */
-			buf = ReadBuffer(state->r, GistPageGetOpaque(page)->rightlink);
+			buf = ReadBuffer(state->r, GistPageGetOpaque(page)->rightlink, &hit);
+			pgstat_count_record_buffer(state->r, hit);
 			LockBuffer(buf, GIST_EXCLUSIVE);
 		}
 		else

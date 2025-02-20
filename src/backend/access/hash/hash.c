@@ -505,6 +505,7 @@ loop_top:
 		HashPageOpaque bucket_opaque;
 		Page		page;
 		bool		split_cleanup = false;
+		bool        hit;
 
 		/* Get address of bucket's start page */
 		bucket_blkno = BUCKET_TO_BLKNO(cachedmetap, cur_bucket);
@@ -515,7 +516,9 @@ loop_top:
 		 * We need to acquire a cleanup lock on the primary bucket page to out
 		 * wait concurrent scans before deleting the dead tuples.
 		 */
-		buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, info->strategy);
+		buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, info->strategy,
+								 &hit);
+		pgstat_count_record_buffer(rel, hit);
 		LockBufferForCleanup(buf);
 		_hash_checkpage(rel, buf, LH_BUCKET_PAGE);
 

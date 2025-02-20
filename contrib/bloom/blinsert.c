@@ -18,6 +18,7 @@
 #include "bloom.h"
 #include "miscadmin.h"
 #include "nodes/execnodes.h"
+#include "pgstat.h"
 #include "storage/bufmgr.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
@@ -187,6 +188,7 @@ blinsert(Relation index, Datum *values, bool *isnull,
 	BlockNumber blkno = InvalidBlockNumber;
 	OffsetNumber nStart;
 	GenericXLogState *state;
+	bool        hit; 
 
 	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
 									  "Bloom insert temporary context",
@@ -201,7 +203,8 @@ blinsert(Relation index, Datum *values, bool *isnull,
 	 * At first, try to insert new tuple to the first page in notFullPage
 	 * array.  If successful, we don't need to modify the meta page.
 	 */
-	metaBuffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO);
+	metaBuffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO, &hit);
+	pgstat_count_metadata_buffer(index, hit);
 	LockBuffer(metaBuffer, BUFFER_LOCK_SHARE);
 	metaData = BloomPageGetMeta(BufferGetPage(metaBuffer));
 
@@ -213,7 +216,8 @@ blinsert(Relation index, Datum *values, bool *isnull,
 		/* Don't hold metabuffer lock while doing insert */
 		LockBuffer(metaBuffer, BUFFER_LOCK_UNLOCK);
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, &hit);
+		pgstat_count_record_buffer(index, hit);
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 
 		state = GenericXLogStart(index);
@@ -280,7 +284,7 @@ blinsert(Relation index, Datum *values, bool *isnull,
 		blkno = metaData->notFullPage[nStart];
 		Assert(blkno != InvalidBlockNumber);
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, &hit);
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 		page = GenericXLogRegisterBuffer(state, buffer, 0);
 

@@ -126,6 +126,7 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
 		IndexTuple	itup;
 		BlockNumber child;
 		BTStack		new_stack;
+		bool        hit;
 
 		/*
 		 * Race -- the page we just grabbed may have split since we read its
@@ -178,7 +179,8 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
 			page_access = BT_WRITE;
 
 		/* drop the read lock on the page, then acquire one on its child */
-		*bufP = _bt_relandgetbuf(rel, *bufP, child, page_access);
+		*bufP = _bt_relandgetbuf(rel, *bufP, child, page_access, &hit);
+		pgstat_count_buffer(rel, opaque->btpo_level != 1, hit);
 
 		/* okay, all set to move down a level */
 		stack_in = new_stack;
@@ -249,6 +251,7 @@ _bt_moveright(Relation rel,
 	Page		page;
 	BTPageOpaque opaque;
 	int32		cmpval;
+	bool        hit;
 
 	Assert(!forupdate || heaprel != NULL);
 
@@ -299,14 +302,16 @@ _bt_moveright(Relation rel,
 				_bt_relbuf(rel, buf);
 
 			/* re-acquire the lock in the right mode, and re-check */
-			buf = _bt_getbuf(rel, blkno, access);
+			buf = _bt_getbuf(rel, blkno, access, &hit);
+			pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 			continue;
 		}
 
 		if (P_IGNORE(opaque) || _bt_compare(rel, key, page, P_HIKEY) >= cmpval)
 		{
 			/* step right one page */
-			buf = _bt_relandgetbuf(rel, buf, opaque->btpo_next, access);
+			buf = _bt_relandgetbuf(rel, buf, opaque->btpo_next, access, &hit);
+			pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 			continue;
 		}
 		else
@@ -2214,6 +2219,8 @@ static bool
 _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
 				 BlockNumber lastcurrblkno, ScanDirection dir, bool seized)
 {
+	bool hit;
+
 	Relation	rel = scan->indexRelation;
 	BTScanOpaque so = (BTScanOpaque) scan->opaque;
 
@@ -2261,7 +2268,8 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
 		{
 			/* read blkno, but check for interrupts first */
 			CHECK_FOR_INTERRUPTS();
-			so->currPos.buf = _bt_getbuf(rel, blkno, BT_READ);
+			so->currPos.buf = _bt_getbuf(rel, blkno, BT_READ, &hit);
+			pgstat_count_record_buffer(rel, hit);
 		}
 		else
 		{
@@ -2357,10 +2365,11 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 		Page		page;
 		BTPageOpaque opaque;
 		int			tries;
+		bool        hit;
 
 		/* check for interrupts while we're not holding any buffer lock */
 		CHECK_FOR_INTERRUPTS();
-		buf = _bt_getbuf(rel, *blkno, BT_READ);
+		buf = _bt_getbuf(rel, *blkno, BT_READ, NULL);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 
@@ -2387,7 +2396,8 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 				break;
 			/* step right */
 			*blkno = opaque->btpo_next;
-			buf = _bt_relandgetbuf(rel, buf, *blkno, BT_READ);
+			buf = _bt_relandgetbuf(rel, buf, *blkno, BT_READ, &hit);
+			pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
 		}
@@ -2397,9 +2407,10 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 		 * _bt_readpage, which is passed by caller as lastcurrblkno) to see
 		 * what's up with its prev sibling link
 		 */
-		buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ);
+		buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ, &hit);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
+		pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 		if (P_ISDELETED(opaque))
 		{
 			/*
@@ -2414,7 +2425,8 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 					elog(ERROR, "fell off the end of index \"%s\"",
 						 RelationGetRelationName(rel));
 				lastcurrblkno = opaque->btpo_next;
-				buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ);
+				buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ, &hit);
+				pgstat_count_buffer(rel, !P_ISLEAF(opaque), hit);
 				page = BufferGetPage(buf);
 				opaque = BTPageGetOpaque(page);
 				if (!P_ISDELETED(opaque))
@@ -2471,6 +2483,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 	OffsetNumber offnum;
 	BlockNumber blkno;
 	IndexTuple	itup;
+	bool        hit;
 
 	/*
 	 * If we are looking for a leaf page, okay to descend from fast root;
@@ -2503,7 +2516,8 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 			if (blkno == P_NONE)
 				elog(ERROR, "fell off the end of index \"%s\"",
 					 RelationGetRelationName(rel));
-			buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
+			buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ, &hit);
+			pgstat_count_record_buffer(rel, hit);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
 		}
@@ -2526,7 +2540,8 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, offnum));
 		blkno = BTreeTupleGetDownLink(itup);
 
-		buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
+		buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ, &hit);
+		pgstat_count_record_buffer(rel, hit);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 	}

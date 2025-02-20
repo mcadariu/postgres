@@ -18,6 +18,7 @@
 #include "access/reloptions.h"
 #include "bloom.h"
 #include "commands/vacuum.h"
+#include "pgstat.h"
 #include "storage/bufmgr.h"
 #include "storage/indexfsm.h"
 #include "utils/memutils.h"
@@ -185,10 +186,12 @@ initBloomState(BloomState *state, Relation index)
 		Page		page;
 		BloomMetaPageData *meta;
 		BloomOptions *opts;
+		bool 		 hit;
 
 		opts = MemoryContextAlloc(index->rd_indexcxt, sizeof(BloomOptions));
 
-		buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO);
+		buffer = ReadBuffer(index, BLOOM_METAPAGE_BLKNO, &hit);
+		pgstat_count_metadata_buffer(index, hit);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 		page = BufferGetPage(buffer);
@@ -358,6 +361,7 @@ Buffer
 BloomNewBuffer(Relation index)
 {
 	Buffer		buffer;
+	bool        hit;
 
 	/* First, try to get a page from FSM */
 	for (;;)
@@ -367,7 +371,9 @@ BloomNewBuffer(Relation index)
 		if (blkno == InvalidBlockNumber)
 			break;
 
-		buffer = ReadBuffer(index, blkno);
+		
+		buffer = ReadBuffer(index, blkno, &hit);
+		pgstat_count_record_buffer(index, hit);
 
 		/*
 		 * We have to guard against the possibility that someone else already
@@ -453,13 +459,15 @@ BloomInitMetapage(Relation index, ForkNumber forknum)
 	Buffer		metaBuffer;
 	Page		metaPage;
 	GenericXLogState *state;
+	bool        hit;
 
 	/*
 	 * Make a new page; since it is first page it should be associated with
 	 * block number 0 (BLOOM_METAPAGE_BLKNO).  No need to hold the extension
 	 * lock because there cannot be concurrent inserters yet.
 	 */
-	metaBuffer = ReadBufferExtended(index, forknum, P_NEW, RBM_NORMAL, NULL);
+	metaBuffer = ReadBufferExtended(index, forknum, P_NEW, RBM_NORMAL, NULL, &hit);
+	pgstat_count_metadata_buffer(index, hit);
 	LockBuffer(metaBuffer, BUFFER_LOCK_EXCLUSIVE);
 	Assert(BufferGetBlockNumber(metaBuffer) == BLOOM_METAPAGE_BLKNO);
 

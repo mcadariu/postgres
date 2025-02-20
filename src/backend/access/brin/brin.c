@@ -1651,8 +1651,10 @@ brinGetStats(Relation index, BrinStatsData *stats)
 	Buffer		metabuffer;
 	Page		metapage;
 	BrinMetaPageData *metadata;
+	bool        hit;
 
-	metabuffer = ReadBuffer(index, BRIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, BRIN_METAPAGE_BLKNO, &hit);
+	pgstat_count_metadata_buffer(index, hit);
 	LockBuffer(metabuffer, BUFFER_LOCK_SHARE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = (BrinMetaPageData *) PageGetContents(metapage);
@@ -2187,7 +2189,7 @@ brin_vacuum_scan(Relation idxrel, BufferAccessStrategy strategy)
 		CHECK_FOR_INTERRUPTS();
 
 		buf = ReadBufferExtended(idxrel, MAIN_FORKNUM, blkno,
-								 RBM_NORMAL, strategy);
+								 RBM_NORMAL, strategy, NULL);
 
 		brin_page_cleanup(idxrel, buf);
 
