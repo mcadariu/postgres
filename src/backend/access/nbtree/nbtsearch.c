@@ -2254,7 +2254,7 @@ _bt_readnextpage(IndexScanDesc scan, BlockNumber blkno,
 			/* read blkno, but check for interrupts first */
 			CHECK_FOR_INTERRUPTS();
 			so->currPos.buf = _bt_getbuf(rel, blkno, BT_READ, &hit);
-			pgstat_count_buffer(rel, false, hit);
+			pgstat_count_record_buffer(rel, hit);
 		}
 		else
 		{
@@ -2501,7 +2501,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 				elog(ERROR, "fell off the end of index \"%s\"",
 					 RelationGetRelationName(rel));
 			buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ, &hit);
-			pgstat_count_buffer(rel, false, hit);
+			pgstat_count_record_buffer(rel, hit);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
 		}
@@ -2525,7 +2525,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 		blkno = BTreeTupleGetDownLink(itup);
 
 		buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ, &hit);
-		pgstat_count_buffer(rel, false, hit);
+		pgstat_count_record_buffer(rel, hit);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
 	}

@@ -721,6 +721,22 @@ extern void pgstat_report_analyze(Relation rel,
 		if (pgstat_should_count_relation(rel))						\
 			(rel)->pgstat_info->counts.blocks_hit++;				\
 	} while (0)
+#define pgstat_count_metadata_buffer(rel, hit)					    \
+	do {															\
+		if (pgstat_should_count_relation(rel)) {                    \
+			(rel)->pgstat_info->counts.metadata_blocks_fetched++;   \
+			if ((hit)) 												\
+				(rel)->pgstat_info->counts.metadata_blocks_hit++;   \
+		}       												    \
+	} while (0)
+#define pgstat_count_record_buffer(rel, hit)					    \
+	do {															\
+		if (pgstat_should_count_relation(rel)) {                    \
+			(rel)->pgstat_info->counts.record_blocks_fetched++;     \
+			if ((hit)) 												\
+				(rel)->pgstat_info->counts.record_blocks_hit++;     \
+		}       												    \
+	} while (0)
 #define pgstat_count_buffer(rel, metadata, hit)					    \
 	do {															\
 		if (pgstat_should_count_relation(rel)) {                    \
