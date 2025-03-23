@@ -2381,8 +2381,9 @@ _bt_killitems(IndexScanDesc scan)
 		Buffer		buf;
 
 		droppedpin = true;
-		/* Attempt to re-read the buffer, getting pin and lock. */
-		buf = _bt_getbuf(scan->indexRelation, so->currPos.currPage, BT_READ);
+		/* Attempt to re-read the buffer, getting pin andlock. */
+		buf = _bt_getbuf(scan->indexRelation, so->currPos.currPage, BT_READ,
+						 NULL);
 
 		page = BufferGetPage(buf);
 		if (BufferGetLSNAtomic(buf) == so->currPos.lsn)

@@ -849,13 +849,13 @@ redirect:
 
 			if (buffer == InvalidBuffer)
 			{
-				buffer = ReadBuffer(index, blkno);
+				buffer = ReadBuffer(index, blkno, NULL);
 				LockBuffer(buffer, BUFFER_LOCK_SHARE);
 			}
 			else if (blkno != BufferGetBlockNumber(buffer))
 			{
 				UnlockReleaseBuffer(buffer);
-				buffer = ReadBuffer(index, blkno);
+				buffer = ReadBuffer(index, blkno, NULL);
 				LockBuffer(buffer, BUFFER_LOCK_SHARE);
 			}
 

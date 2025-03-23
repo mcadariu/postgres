@@ -684,7 +684,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 		}
 
 		if (XLogRecPtrIsInvalid(stack->lsn))
-			stack->buffer = ReadBuffer(state.r, stack->blkno);
+			stack->buffer = ReadBuffer(state.r, stack->blkno, NULL);
 
 		/*
 		 * Be optimistic and grab shared lock first. Swap it for an exclusive
@@ -935,7 +935,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 		top = linitial(fifo);
 		fifo = list_delete_first(fifo);
 
-		buffer = ReadBuffer(r, top->blkno);
+		buffer = ReadBuffer(r, top->blkno, NULL);
 		LockBuffer(buffer, GIST_SHARE);
 		gistcheckpage(r, buffer);
 		page = (Page) BufferGetPage(buffer);
@@ -1088,7 +1088,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 			 */
 			break;
 		}
-		parent->buffer = ReadBuffer(r, parent->blkno);
+		parent->buffer = ReadBuffer(r, parent->blkno, NULL);
 		LockBuffer(parent->buffer, GIST_EXCLUSIVE);
 		gistcheckpage(r, parent->buffer);
 		parent->page = (Page) BufferGetPage(parent->buffer);
@@ -1113,7 +1113,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 	/* note we don't lock them or gistcheckpage them here! */
 	while (ptr)
 	{
-		ptr->buffer = ReadBuffer(r, ptr->blkno);
+		ptr->buffer = ReadBuffer(r, ptr->blkno, NULL);
 		ptr->page = (Page) BufferGetPage(ptr->buffer);
 		ptr = ptr->parent;
 	}
@@ -1228,7 +1228,7 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 		if (GistFollowRight(page))
 		{
 			/* lock next page */
-			buf = ReadBuffer(state->r, GistPageGetOpaque(page)->rightlink);
+			buf = ReadBuffer(state->r, GistPageGetOpaque(page)->rightlink, NULL);
 			LockBuffer(buf, GIST_EXCLUSIVE);
 		}
 		else
