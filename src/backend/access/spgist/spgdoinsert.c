@@ -21,6 +21,7 @@
 #include "access/xloginsert.h"
 #include "common/int.h"
 #include "common/pg_prng.h"
+#include "pgstat.h"
 #include "miscadmin.h"
 #include "storage/bufmgr.h"
 #include "utils/rel.h"
@@ -1925,6 +1926,7 @@ spgdoinsert(Relation index, SpGistState *state,
 	SPPageDesc	current,
 				parent;
 	FmgrInfo   *procinfo = NULL;
+	bool        hit;
 
 	/*
 	 * Look up FmgrInfo of the user-defined choose function once, to save
@@ -2065,13 +2067,15 @@ spgdoinsert(Relation index, SpGistState *state,
 		else if (parent.buffer == InvalidBuffer)
 		{
 			/* we hold no parent-page lock, so no deadlock is possible */
-			current.buffer = ReadBuffer(index, current.blkno);
+			current.buffer = ReadBuffer(index, current.blkno, &hit);
+			pgstat_count_buffer(index, !SpGistPageIsLeaf(BufferGetPage(current.buffer)), hit);
 			LockBuffer(current.buffer, BUFFER_LOCK_EXCLUSIVE);
 		}
 		else if (current.blkno != parent.blkno)
 		{
 			/* descend to a new child page */
-			current.buffer = ReadBuffer(index, current.blkno);
+			current.buffer = ReadBuffer(index, current.blkno, &hit);
+			pgstat_count_buffer(index, !SpGistPageIsLeaf(BufferGetPage(current.buffer)), hit);
 
 			/*
 			 * Attempt to acquire lock on child page.  We must beware of

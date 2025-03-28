@@ -15,6 +15,7 @@
 #include "access/brin_revmap.h"
 #include "access/brin_xlog.h"
 #include "access/xloginsert.h"
+#include "pgstat.h"
 #include "miscadmin.h"
 #include "storage/bufmgr.h"
 #include "storage/freespace.h"
@@ -694,6 +695,7 @@ brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
 	BlockNumber newblk;
 	Page		page;
 	Size		freespace;
+	bool        hit;
 
 	/* callers must have checked */
 	Assert(itemsz <= BrinMaxItemSize);
@@ -739,7 +741,8 @@ brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
 				LockRelationForExtension(irel, ExclusiveLock);
 				extensionLockHeld = true;
 			}
-			buf = ReadBuffer(irel, P_NEW);
+			buf = ReadBuffer(irel, P_NEW, &hit);
+			pgstat_count_record_buffer(irel, hit);
 			newblk = BufferGetBlockNumber(buf);
 			*extended = true;
 
@@ -756,7 +759,8 @@ brin_getinsertbuffer(Relation irel, Buffer oldbuf, Size itemsz,
 		}
 		else
 		{
-			buf = ReadBuffer(irel, newblk);
+			buf = ReadBuffer(irel, newblk, &hit);
+			pgstat_count_record_buffer(irel, hit);
 		}
 
 		/*

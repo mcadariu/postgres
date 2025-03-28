@@ -79,6 +79,7 @@ blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 				npages;
 	int			i;
 	BufferAccessStrategy bas;
+	bool        hit;
 	BloomScanOpaque so = (BloomScanOpaque) scan->opaque;
 
 	if (so->sign == NULL)
@@ -125,7 +126,8 @@ blgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 		Page		page;
 
 		buffer = ReadBufferExtended(scan->indexRelation, MAIN_FORKNUM,
-									blkno, RBM_NORMAL, bas);
+									blkno, RBM_NORMAL, bas, &hit);
+		pgstat_count_record_buffer(scan->indexRelation, hit);
 
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 		page = BufferGetPage(buffer);
