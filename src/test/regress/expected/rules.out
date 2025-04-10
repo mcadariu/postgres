@@ -1847,6 +1847,10 @@ pg_stat_database| SELECT oid AS datid,
     pg_stat_get_db_xact_rollback(oid) AS xact_rollback,
     (pg_stat_get_db_blocks_fetched(oid) - pg_stat_get_db_blocks_hit(oid)) AS blks_read,
     pg_stat_get_db_blocks_hit(oid) AS blks_hit,
+    (pg_stat_get_db_metadata_blocks_fetched(oid) - pg_stat_get_db_metadata_blocks_hit(oid)) AS metadata_blks_read,
+    pg_stat_get_db_metadata_blocks_hit(oid) AS metadata_blks_hit,
+    (pg_stat_get_db_record_blocks_fetched(oid) - pg_stat_get_db_record_blocks_hit(oid)) AS record_blks_read,
+    pg_stat_get_db_record_blocks_hit(oid) AS record_blks_hit,
     pg_stat_get_db_tuples_returned(oid) AS tup_returned,
     pg_stat_get_db_tuples_fetched(oid) AS tup_fetched,
     pg_stat_get_db_tuples_inserted(oid) AS tup_inserted,
@@ -2338,7 +2342,11 @@ pg_statio_all_indexes| SELECT c.oid AS relid,
     c.relname,
     i.relname AS indexrelname,
     (pg_stat_get_blocks_fetched(i.oid) - pg_stat_get_blocks_hit(i.oid)) AS idx_blks_read,
-    pg_stat_get_blocks_hit(i.oid) AS idx_blks_hit
+    pg_stat_get_blocks_hit(i.oid) AS idx_blks_hit,
+    (pg_stat_get_metadata_blocks_fetched(i.oid) - pg_stat_get_metadata_blocks_hit(i.oid)) AS idx_metadata_blks_read,
+    pg_stat_get_metadata_blocks_hit(i.oid) AS idx_metadata_blks_hit,
+    (pg_stat_get_record_blocks_fetched(i.oid) - pg_stat_get_record_blocks_hit(i.oid)) AS idx_record_blks_read,
+    pg_stat_get_record_blocks_hit(i.oid) AS idx_record_blks_hit
    FROM (((pg_class c
      JOIN pg_index x ON ((c.oid = x.indrelid)))
      JOIN pg_class i ON ((i.oid = x.indexrelid)))
@@ -2359,6 +2367,10 @@ pg_statio_all_tables| SELECT c.oid AS relid,
     pg_stat_get_blocks_hit(c.oid) AS heap_blks_hit,
     i.idx_blks_read,
     i.idx_blks_hit,
+    i.idx_metadata_blks_read,
+    i.idx_metadata_blks_hit,
+    i.idx_record_blks_read,
+    i.idx_record_blks_hit,
     (pg_stat_get_blocks_fetched(t.oid) - pg_stat_get_blocks_hit(t.oid)) AS toast_blks_read,
     pg_stat_get_blocks_hit(t.oid) AS toast_blks_hit,
     x.idx_blks_read AS tidx_blks_read,
@@ -2367,7 +2379,11 @@ pg_statio_all_tables| SELECT c.oid AS relid,
      LEFT JOIN pg_class t ON ((c.reltoastrelid = t.oid)))
      LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
      LEFT JOIN LATERAL ( SELECT (sum((pg_stat_get_blocks_fetched(pg_index.indexrelid) - pg_stat_get_blocks_hit(pg_index.indexrelid))))::bigint AS idx_blks_read,
-            (sum(pg_stat_get_blocks_hit(pg_index.indexrelid)))::bigint AS idx_blks_hit
+            (sum(pg_stat_get_blocks_hit(pg_index.indexrelid)))::bigint AS idx_blks_hit,
+            (sum((pg_stat_get_metadata_blocks_fetched(pg_index.indexrelid) - pg_stat_get_metadata_blocks_hit(pg_index.indexrelid))))::bigint AS idx_metadata_blks_read,
+            (sum(pg_stat_get_metadata_blocks_hit(pg_index.indexrelid)))::bigint AS idx_metadata_blks_hit,
+            (sum((pg_stat_get_record_blocks_fetched(pg_index.indexrelid) - pg_stat_get_record_blocks_hit(pg_index.indexrelid))))::bigint AS idx_record_blks_read,
+            (sum(pg_stat_get_record_blocks_hit(pg_index.indexrelid)))::bigint AS idx_record_blks_hit
            FROM pg_index
           WHERE (pg_index.indrelid = c.oid)) i ON (true))
      LEFT JOIN LATERAL ( SELECT (sum((pg_stat_get_blocks_fetched(pg_index.indexrelid) - pg_stat_get_blocks_hit(pg_index.indexrelid))))::bigint AS idx_blks_read,
@@ -2381,7 +2397,11 @@ pg_statio_sys_indexes| SELECT relid,
     relname,
     indexrelname,
     idx_blks_read,
-    idx_blks_hit
+    idx_blks_hit,
+    idx_metadata_blks_read,
+    idx_metadata_blks_hit,
+    idx_record_blks_read,
+    idx_record_blks_hit
    FROM pg_statio_all_indexes
   WHERE ((schemaname = ANY (ARRAY['pg_catalog'::name, 'information_schema'::name])) OR (schemaname ~ '^pg_toast'::text));
 pg_statio_sys_sequences| SELECT relid,
@@ -2398,6 +2418,10 @@ pg_statio_sys_tables| SELECT relid,
     heap_blks_hit,
     idx_blks_read,
     idx_blks_hit,
+    idx_metadata_blks_read,
+    idx_metadata_blks_hit,
+    idx_record_blks_read,
+    idx_record_blks_hit,
     toast_blks_read,
     toast_blks_hit,
     tidx_blks_read,
@@ -2410,7 +2434,11 @@ pg_statio_user_indexes| SELECT relid,
     relname,
     indexrelname,
     idx_blks_read,
-    idx_blks_hit
+    idx_blks_hit,
+    idx_metadata_blks_read,
+    idx_metadata_blks_hit,
+    idx_record_blks_read,
+    idx_record_blks_hit
    FROM pg_statio_all_indexes
   WHERE ((schemaname <> ALL (ARRAY['pg_catalog'::name, 'information_schema'::name])) AND (schemaname !~ '^pg_toast'::text));
 pg_statio_user_sequences| SELECT relid,
@@ -2427,6 +2455,10 @@ pg_statio_user_tables| SELECT relid,
     heap_blks_hit,
     idx_blks_read,
     idx_blks_hit,
+    idx_metadata_blks_read,
+    idx_metadata_blks_hit,
+    idx_record_blks_read,
+    idx_record_blks_hit,
     toast_blks_read,
     toast_blks_hit,
     tidx_blks_read,
