@@ -1641,7 +1641,7 @@ backtrack:
 		 * nondefault buffer access strategy.
 		 */
 		buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-								 info->strategy);
+								 info->strategy, NULL);
 		goto backtrack;
 	}
 

@@ -154,7 +154,7 @@ pg_visibility(PG_FUNCTION_ARGS)
 	/* Here we have to explicitly check rel size ... */
 	if (blkno < RelationGetNumberOfBlocks(rel))
 	{
-		buffer = ReadBuffer(rel, blkno);
+		buffer = ReadBuffer(rel, blkno, NULL);
 		LockBuffer(buffer, BUFFER_LOCK_SHARE);
 
 		page = BufferGetPage(buffer);

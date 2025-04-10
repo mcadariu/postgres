@@ -3422,7 +3422,7 @@ count_nondeletable_pages(LVRelState *vacrel, bool *lock_waiter_detected)
 		}
 
 		buf = ReadBufferExtended(vacrel->rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-								 vacrel->bstrategy);
+								 vacrel->bstrategy, NULL);
 
 		/* In this phase we only need shared access to the buffer */
 		LockBuffer(buf, BUFFER_LOCK_SHARE);

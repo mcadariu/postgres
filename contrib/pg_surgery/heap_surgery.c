@@ -175,7 +175,7 @@ heap_force_common(FunctionCallInfo fcinfo, HeapTupleForceOption heap_force_opt)
 			continue;
 		}
 
-		buf = ReadBuffer(rel, blkno);
+		buf = ReadBuffer(rel, blkno, NULL);
 		LockBufferForCleanup(buf);
 
 		page = BufferGetPage(buf);

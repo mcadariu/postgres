@@ -173,7 +173,7 @@ gin_check_posting_tree_parent_keys_consistency(Relation rel, BlockNumber posting
 		CHECK_FOR_INTERRUPTS();
 
 		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, stack->blkno,
-									RBM_NORMAL, strategy);
+									RBM_NORMAL, strategy, NULL);
 		LockBuffer(buffer, GIN_SHARE);
 		page = (Page) BufferGetPage(buffer);
 
@@ -439,7 +439,7 @@ gin_check_parent_keys_consistency(Relation rel,
 		CHECK_FOR_INTERRUPTS();
 
 		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, stack->blkno,
-									RBM_NORMAL, strategy);
+									RBM_NORMAL, strategy, NULL);
 		LockBuffer(buffer, GIN_SHARE);
 		page = (Page) BufferGetPage(buffer);
 		lsn = BufferGetLSNAtomic(buffer);
@@ -732,7 +732,7 @@ gin_refind_parent(Relation rel, BlockNumber parentblkno,
 	IndexTuple	result = NULL;
 
 	parentbuf = ReadBufferExtended(rel, MAIN_FORKNUM, parentblkno, RBM_NORMAL,
-								   strategy);
+								   strategy, NULL);
 
 	LockBuffer(parentbuf, GIN_SHARE);
 	parentpage = BufferGetPage(parentbuf);
