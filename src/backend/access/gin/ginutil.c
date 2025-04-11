@@ -22,6 +22,7 @@
 #include "catalog/pg_type.h"
 #include "commands/progress.h"
 #include "commands/vacuum.h"
+#include "pgstat.h"
 #include "miscadmin.h"
 #include "storage/indexfsm.h"
 #include "utils/builtins.h"
@@ -305,6 +306,7 @@ Buffer
 GinNewBuffer(Relation index)
 {
 	Buffer		buffer;
+	bool        hit = false;
 
 	/* First, try to get a page from FSM */
 	for (;;)
@@ -314,7 +316,8 @@ GinNewBuffer(Relation index)
 		if (blkno == InvalidBlockNumber)
 			break;
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, &hit);
+		pgstat_count_index_buffer(index, GinPageIsLeaf(BufferGetPage(buffer)), hit);
 
 		/*
 		 * We have to guard against the possibility that someone else already
@@ -630,8 +633,10 @@ ginGetStats(Relation index, GinStatsData *stats)
 	Buffer		metabuffer;
 	Page		metapage;
 	GinMetaPageData *metadata;
+	bool            hit = false;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO, &hit);
+	pgstat_count_metadata_index_buffer(index, hit);
 	LockBuffer(metabuffer, GIN_SHARE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = GinPageGetMeta(metapage);
@@ -657,8 +662,10 @@ ginUpdateStats(Relation index, const GinStatsData *stats, bool is_build)
 	Buffer		metabuffer;
 	Page		metapage;
 	GinMetaPageData *metadata;
+	bool            hit = false;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO, &hit);
+	pgstat_count_metadata_index_buffer(index, hit);
 	LockBuffer(metabuffer, GIN_EXCLUSIVE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = GinPageGetMeta(metapage);

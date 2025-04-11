@@ -32,6 +32,7 @@
 #include "access/hash_xlog.h"
 #include "access/xloginsert.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "port/pg_bitutils.h"
 #include "storage/predicate.h"
 #include "storage/smgr.h"
@@ -70,11 +71,13 @@ Buffer
 _hash_getbuf(Relation rel, BlockNumber blkno, int access, int flags)
 {
 	Buffer		buf;
+	bool        hit = false;
 
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
 
-	buf = ReadBuffer(rel, blkno);
+	buf = ReadBuffer(rel, blkno, &hit);
+	pgstat_count_index_buffer(rel, flags == LH_META_PAGE, hit);
 
 	if (access != HASH_NOLOCK)
 		LockBuffer(buf, access);
@@ -96,11 +99,13 @@ Buffer
 _hash_getbuf_with_condlock_cleanup(Relation rel, BlockNumber blkno, int flags)
 {
 	Buffer		buf;
+	bool        hit = false;
 
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
 
-	buf = ReadBuffer(rel, blkno);
+	buf = ReadBuffer(rel, blkno, &hit);
+	pgstat_count_index_buffer(rel, flags == LH_META_PAGE, hit);
 
 	if (!ConditionalLockBufferForCleanup(buf))
 	{
@@ -135,12 +140,14 @@ Buffer
 _hash_getinitbuf(Relation rel, BlockNumber blkno)
 {
 	Buffer		buf;
+	bool        hit = false;
 
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
 
 	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_ZERO_AND_LOCK,
-							 NULL);
+							 NULL, &hit);
+	pgstat_count_record_index_buffer(rel, hit);
 
 	/* ref count and lock type are correct */
 
@@ -199,6 +206,7 @@ _hash_getnewbuf(Relation rel, BlockNumber blkno, ForkNumber forkNum)
 {
 	BlockNumber nblocks = RelationGetNumberOfBlocksInFork(rel, forkNum);
 	Buffer		buf;
+	bool        hit = false;
 
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
@@ -218,7 +226,8 @@ _hash_getnewbuf(Relation rel, BlockNumber blkno, ForkNumber forkNum)
 	else
 	{
 		buf = ReadBufferExtended(rel, forkNum, blkno, RBM_ZERO_AND_LOCK,
-								 NULL);
+								 NULL, &hit);
+		pgstat_count_record_index_buffer(rel, hit);
 	}
 
 	/* ref count and lock type are correct */
@@ -241,11 +250,13 @@ _hash_getbuf_with_strategy(Relation rel, BlockNumber blkno,
 						   BufferAccessStrategy bstrategy)
 {
 	Buffer		buf;
+	bool        hit = false;
 
 	if (blkno == P_NEW)
 		elog(ERROR, "hash AM does not use P_NEW");
 
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy);
+	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL, bstrategy, &hit);
+	pgstat_count_index_buffer(rel, flags == LH_META_PAGE, hit);
 
 	if (access != HASH_NOLOCK)
 		LockBuffer(buf, access);

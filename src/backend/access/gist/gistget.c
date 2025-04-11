@@ -44,18 +44,20 @@ gistkillitems(IndexScanDesc scan)
 	ItemId		iid;
 	int			i;
 	bool		killedsomething = false;
+	bool 		hit = false;
 
 	Assert(so->curBlkno != InvalidBlockNumber);
 	Assert(!XLogRecPtrIsInvalid(so->curPageLSN));
 	Assert(so->killedItems != NULL);
 
-	buffer = ReadBuffer(scan->indexRelation, so->curBlkno);
+	buffer = ReadBuffer(scan->indexRelation, so->curBlkno, &hit);
 	if (!BufferIsValid(buffer))
 		return;
 
 	LockBuffer(buffer, GIST_SHARE);
 	gistcheckpage(scan->indexRelation, buffer);
 	page = BufferGetPage(buffer);
+	pgstat_count_index_buffer(scan->indexRelation, !GistPageIsLeaf(page), hit);
 
 	/*
 	 * If page LSN differs it means that the page was modified since the last
@@ -337,14 +339,16 @@ gistScanPage(IndexScanDesc scan, GISTSearchItem *pageItem,
 	OffsetNumber maxoff;
 	OffsetNumber i;
 	MemoryContext oldcxt;
+	bool          hit = false;
 
 	Assert(!GISTSearchItemIsHeap(*pageItem));
 
-	buffer = ReadBuffer(scan->indexRelation, pageItem->blkno);
+	buffer = ReadBuffer(scan->indexRelation, pageItem->blkno, &hit);
 	LockBuffer(buffer, GIST_SHARE);
 	PredicateLockPage(r, BufferGetBlockNumber(buffer), scan->xs_snapshot);
 	gistcheckpage(scan->indexRelation, buffer);
 	page = BufferGetPage(buffer);
+	pgstat_count_index_buffer(scan->indexRelation, !GistPageIsLeaf(page), hit);
 	opaque = GistPageGetOpaque(page);
 
 	/*

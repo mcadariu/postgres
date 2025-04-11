@@ -491,7 +491,7 @@ restart:
 		vacuum_delay_point(false);
 
 		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_NORMAL,
-									info->strategy);
+									info->strategy, NULL);
 		goto restart;
 	}
 }
@@ -524,7 +524,7 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 		int			deleted;
 
 		buffer = ReadBufferExtended(rel, MAIN_FORKNUM, (BlockNumber) blkno,
-									RBM_NORMAL, info->strategy);
+									RBM_NORMAL, info->strategy, NULL);
 
 		LockBuffer(buffer, GIST_SHARE);
 		page = (Page) BufferGetPage(buffer);
@@ -590,7 +590,7 @@ gistvacuum_delete_empty_pages(IndexVacuumInfo *info, GistVacState *vstate)
 				break;
 
 			leafbuf = ReadBufferExtended(rel, MAIN_FORKNUM, leafs_to_delete[i],
-										 RBM_NORMAL, info->strategy);
+										 RBM_NORMAL, info->strategy, NULL);
 			LockBuffer(leafbuf, GIST_EXCLUSIVE);
 			gistcheckpage(rel, leafbuf);
 

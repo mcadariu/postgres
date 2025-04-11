@@ -41,6 +41,7 @@
 #include "miscadmin.h"
 #include "nodes/execnodes.h"
 #include "optimizer/optimizer.h"
+#include "pgstat.h"
 #include "storage/bufmgr.h"
 #include "storage/bulk_write.h"
 
@@ -935,6 +936,7 @@ gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
 	int			level;
 	OffsetNumber downlinkoffnum = InvalidOffsetNumber;
 	BlockNumber parentblkno = InvalidBlockNumber;
+	bool        hit = false;
 
 	CHECK_FOR_INTERRUPTS();
 
@@ -966,10 +968,12 @@ gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
 		 * descend down to.
 		 */
 
-		buffer = ReadBuffer(indexrel, blkno);
+		buffer = ReadBuffer(indexrel, blkno, &hit);
 		LockBuffer(buffer, GIST_EXCLUSIVE);
 
 		page = (Page) BufferGetPage(buffer);
+		pgstat_count_index_buffer(indexrel, !GistPageIsLeaf(page), hit);
+
 		childoffnum = gistchoose(indexrel, page, itup, giststate);
 		iid = PageGetItemId(page, childoffnum);
 		idxtuple = (IndexTuple) PageGetItem(page, iid);
@@ -1029,7 +1033,8 @@ gistProcessItup(GISTBuildState *buildstate, IndexTuple itup,
 		 * We've reached a leaf page. Place the tuple here.
 		 */
 		Assert(level == 0);
-		buffer = ReadBuffer(indexrel, blkno);
+		buffer = ReadBuffer(indexrel, blkno, &hit);
+		pgstat_count_record_index_buffer(indexrel, hit);
 		LockBuffer(buffer, GIST_EXCLUSIVE);
 		gistbufferinginserttuples(buildstate, buffer, level,
 								  &itup, 1, InvalidOffsetNumber,
@@ -1061,6 +1066,7 @@ gistbufferinginserttuples(GISTBuildState *buildstate, Buffer buffer, int level,
 	List	   *splitinfo;
 	bool		is_split;
 	BlockNumber placed_to_blk = InvalidBlockNumber;
+	bool        hit = false;
 
 	is_split = gistplacetopage(buildstate->indexrel,
 							   buildstate->freespace,
@@ -1102,7 +1108,8 @@ gistbufferinginserttuples(GISTBuildState *buildstate, Buffer buffer, int level,
 				ItemId		iid = PageGetItemId(page, off);
 				IndexTuple	idxtuple = (IndexTuple) PageGetItem(page, iid);
 				BlockNumber childblkno = ItemPointerGetBlockNumber(&(idxtuple->t_tid));
-				Buffer		childbuf = ReadBuffer(buildstate->indexrel, childblkno);
+				Buffer		childbuf = ReadBuffer(buildstate->indexrel, childblkno, &hit);
+				pgstat_count_record_index_buffer(buildstate->indexrel, hit);
 
 				LockBuffer(childbuf, GIST_SHARE);
 				gistMemorizeAllDownlinks(buildstate, childbuf);
@@ -1232,6 +1239,7 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
 	Page		page;
 	OffsetNumber maxoff;
 	OffsetNumber off;
+	bool         hit = false;
 
 	if (level > 0)
 		parent = gistGetParent(buildstate, childblkno);
@@ -1246,8 +1254,9 @@ gistBufferingFindCorrectParent(GISTBuildState *buildstate,
 		parent = *parentblkno;
 	}
 
-	buffer = ReadBuffer(buildstate->indexrel, parent);
+	buffer = ReadBuffer(buildstate->indexrel, parent, &hit);
 	page = BufferGetPage(buffer);
+	pgstat_count_index_buffer(buildstate->indexrel, !GistPageIsLeaf(page), hit);
 	LockBuffer(buffer, GIST_EXCLUSIVE);
 	gistcheckpage(buildstate->indexrel, buffer);
 	maxoff = PageGetMaxOffsetNumber(page);
@@ -1440,8 +1449,9 @@ gistGetMaxLevel(Relation index)
 		Buffer		buffer;
 		Page		page;
 		IndexTuple	itup;
+		bool        hit = false;
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, &hit);
 
 		/*
 		 * There's no concurrent access during index build, so locking is just
@@ -1454,8 +1464,11 @@ gistGetMaxLevel(Relation index)
 		{
 			/* We hit the bottom, so we're done. */
 			UnlockReleaseBuffer(buffer);
+			pgstat_count_record_index_buffer(index, hit);
 			break;
 		}
+
+		pgstat_count_metadata_index_buffer(index, hit);
 
 		/*
 		 * Pick the first downlink on the page, and follow it. It doesn't

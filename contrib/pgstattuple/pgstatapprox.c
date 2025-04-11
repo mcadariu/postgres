@@ -94,7 +94,7 @@ statapprox_heap(Relation rel, output_type *stat)
 		}
 
 		buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno,
-								 RBM_NORMAL, bstrategy);
+								 RBM_NORMAL, bstrategy, NULL);
 
 		LockBuffer(buf, BUFFER_LOCK_SHARE);
 

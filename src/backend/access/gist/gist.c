@@ -20,6 +20,7 @@
 #include "catalog/pg_collation.h"
 #include "commands/vacuum.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "nodes/execnodes.h"
 #include "storage/predicate.h"
 #include "utils/fmgrprotos.h"
@@ -645,6 +646,7 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 	GISTInsertStack *stack;
 	GISTInsertState state;
 	bool		xlocked = false;
+	bool        hit = false;
 
 	memset(&state, 0, sizeof(GISTInsertState));
 	state.freespace = freespace;
@@ -683,8 +685,10 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 			state.stack = stack = stack->parent;
 		}
 
-		if (XLogRecPtrIsInvalid(stack->lsn))
-			stack->buffer = ReadBuffer(state.r, stack->blkno);
+		if (XLogRecPtrIsInvalid(stack->lsn)) {
+			stack->buffer = ReadBuffer(state.r, stack->blkno, &hit);
+			pgstat_count_index_buffer(state.r, !GistPageIsLeaf(BufferGetPage(stack->buffer)), hit);
+		}
 
 		/*
 		 * Be optimistic and grab shared lock first. Swap it for an exclusive
@@ -923,6 +927,7 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 	GISTInsertStack *top,
 			   *ptr;
 	BlockNumber blkno;
+	bool        hit = false;
 
 	top = (GISTInsertStack *) palloc0(sizeof(GISTInsertStack));
 	top->blkno = GIST_ROOT_BLKNO;
@@ -935,10 +940,11 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 		top = linitial(fifo);
 		fifo = list_delete_first(fifo);
 
-		buffer = ReadBuffer(r, top->blkno);
+		buffer = ReadBuffer(r, top->blkno, &hit);
 		LockBuffer(buffer, GIST_SHARE);
 		gistcheckpage(r, buffer);
 		page = (Page) BufferGetPage(buffer);
+		pgstat_count_index_buffer(r, !GistPageIsLeaf(page), hit);
 
 		if (GistPageIsLeaf(page))
 		{
@@ -1031,6 +1037,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 	IndexTuple	idxtuple;
 	OffsetNumber maxoff;
 	GISTInsertStack *ptr;
+	bool            hit = false;
 
 	gistcheckpage(r, parent->buffer);
 	parent->page = (Page) BufferGetPage(parent->buffer);
@@ -1095,10 +1102,11 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 			 */
 			break;
 		}
-		parent->buffer = ReadBuffer(r, parent->blkno);
+		parent->buffer = ReadBuffer(r, parent->blkno, &hit);
 		LockBuffer(parent->buffer, GIST_EXCLUSIVE);
 		gistcheckpage(r, parent->buffer);
 		parent->page = (Page) BufferGetPage(parent->buffer);
+		pgstat_count_index_buffer(r, !GistPageIsLeaf(parent->page), hit);
 	}
 
 	/*
@@ -1120,8 +1128,9 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 	/* note we don't lock them or gistcheckpage them here! */
 	while (ptr)
 	{
-		ptr->buffer = ReadBuffer(r, ptr->blkno);
+		ptr->buffer = ReadBuffer(r, ptr->blkno, &hit);
 		ptr->page = (Page) BufferGetPage(ptr->buffer);
+		pgstat_count_index_buffer(r, !GistPageIsLeaf(ptr->page), hit);
 		ptr = ptr->parent;
 	}
 
@@ -1203,6 +1212,7 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 	Buffer		buf;
 	Page		page;
 	List	   *splitinfo = NIL;
+	bool       hit = false;
 
 	ereport(LOG,
 			(errmsg("fixing incomplete split in index \"%s\", block %u",
@@ -1235,7 +1245,8 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 		if (GistFollowRight(page))
 		{
 			/* lock next page */
-			buf = ReadBuffer(state->r, GistPageGetOpaque(page)->rightlink);
+			buf = ReadBuffer(state->r, GistPageGetOpaque(page)->rightlink, &hit);
+			pgstat_count_index_buffer(state->r, !GistPageIsLeaf(BufferGetPage(buf)), hit);
 			LockBuffer(buf, GIST_EXCLUSIVE);
 		}
 		else

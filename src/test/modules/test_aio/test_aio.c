@@ -211,7 +211,7 @@ modify_rel_block(PG_FUNCTION_ARGS)
 	rel = relation_open(relid, AccessExclusiveLock);
 
 	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno,
-							 RBM_ZERO_ON_ERROR, NULL);
+							 RBM_ZERO_ON_ERROR, NULL, NULL);
 
 	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 
@@ -312,7 +312,7 @@ create_toy_buffer(Relation rel, BlockNumber blkno)
 	bool		was_pinned = false;
 
 	/* place buffer in shared buffers without erroring out */
-	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_ZERO_AND_LOCK, NULL);
+	buf = ReadBufferExtended(rel, MAIN_FORKNUM, blkno, RBM_ZERO_AND_LOCK, NULL, NULL);
 	LockBuffer(buf, BUFFER_LOCK_UNLOCK);
 
 	if (RelationUsesLocalBuffers(rel))
