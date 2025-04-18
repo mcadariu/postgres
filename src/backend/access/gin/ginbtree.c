@@ -18,6 +18,7 @@
 #include "access/ginxlog.h"
 #include "access/xloginsert.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "storage/predicate.h"
 #include "utils/injection_point.h"
 #include "utils/memutils.h"
@@ -84,10 +85,12 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 				bool rootConflictCheck)
 {
 	GinBtreeStack *stack;
+	bool          hit = false;
 
 	stack = (GinBtreeStack *) palloc(sizeof(GinBtreeStack));
 	stack->blkno = btree->rootBlkno;
-	stack->buffer = ReadBuffer(btree->index, btree->rootBlkno);
+	stack->buffer = ReadBuffer(btree->index, btree->rootBlkno, &hit);
+	pgstat_count_metadata_index_buffer(btree->index, hit);
 	stack->parent = NULL;
 	stack->predictNumber = 1;
 
@@ -148,7 +151,9 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 		{
 			/* in search mode we may forget path to leaf */
 			stack->blkno = child;
-			stack->buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, stack->blkno);
+			stack->buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, stack->blkno,
+												 &hit);
+			pgstat_count_index_buffer(btree->index, GinPageIsLeaf(BufferGetPage(stack->buffer)), hit);
 		}
 		else
 		{
@@ -157,7 +162,8 @@ ginFindLeafPage(GinBtree btree, bool searchMode,
 			ptr->parent = stack;
 			stack = ptr;
 			stack->blkno = child;
-			stack->buffer = ReadBuffer(btree->index, stack->blkno);
+			stack->buffer = ReadBuffer(btree->index, stack->blkno, &hit);
+			pgstat_count_index_buffer(btree->index, GinPageIsLeaf(BufferGetPage(stack->buffer)), hit);
 			stack->predictNumber = 1;
 		}
 	}
@@ -177,12 +183,14 @@ Buffer
 ginStepRight(Buffer buffer, Relation index, int lockmode)
 {
 	Buffer		nextbuffer;
+	bool        hit = false;
 	Page		page = BufferGetPage(buffer);
 	bool		isLeaf = GinPageIsLeaf(page);
 	bool		isData = GinPageIsData(page);
 	BlockNumber blkno = GinPageGetOpaque(page)->rightlink;
 
-	nextbuffer = ReadBuffer(index, blkno);
+	nextbuffer = ReadBuffer(index, blkno, &hit);
+	pgstat_count_index_buffer(index, isLeaf, hit);
 	LockBuffer(nextbuffer, lockmode);
 	UnlockReleaseBuffer(buffer);
 
@@ -224,6 +232,7 @@ ginFindParents(GinBtree btree, GinBtreeStack *stack)
 	OffsetNumber offset;
 	GinBtreeStack *root;
 	GinBtreeStack *ptr;
+	bool          hit = false;
 
 	/*
 	 * Unwind the stack all the way up to the root, leaving only the root
@@ -314,7 +323,8 @@ ginFindParents(GinBtree btree, GinBtreeStack *stack)
 
 		/* Descend down to next level */
 		blkno = leftmostBlkno;
-		buffer = ReadBuffer(btree->index, blkno);
+		buffer = ReadBuffer(btree->index, blkno, &hit);
+		pgstat_count_index_buffer(btree->index, GinPageIsLeaf(BufferGetPage(buffer)), hit);
 	}
 }
 

@@ -132,7 +132,8 @@ heapam_index_fetch_tuple(struct IndexFetchTableData *scan,
 
 		hscan->xs_cbuf = ReleaseAndReadBuffer(hscan->xs_cbuf,
 											  hscan->xs_base.rel,
-											  ItemPointerGetBlockNumber(tid));
+											  ItemPointerGetBlockNumber(tid),
+											  NULL);
 
 		/*
 		 * Prune page, but only if we weren't already on this page
@@ -2250,7 +2251,8 @@ heapam_scan_sample_next_block(TableScanDesc scan, SampleScanState *scanstate)
 
 	/* Read page using selected strategy */
 	hscan->rs_cbuf = ReadBufferExtended(hscan->rs_base.rs_rd, MAIN_FORKNUM,
-										blockno, RBM_NORMAL, hscan->rs_strategy);
+										blockno, RBM_NORMAL, hscan->rs_strategy,
+										NULL);
 
 	/* in pagemode, prune the page and determine visible tuple offsets */
 	if (hscan->rs_base.rs_flags & SO_ALLOW_PAGEMODE)

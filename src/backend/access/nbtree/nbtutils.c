@@ -20,6 +20,7 @@
 #include "access/nbtree.h"
 #include "access/reloptions.h"
 #include "commands/progress.h"
+#include "pgstat.h"
 #include "miscadmin.h"
 #include "utils/datum.h"
 #include "utils/lsyscache.h"
@@ -3318,6 +3319,7 @@ _bt_killitems(IndexScanDesc scan)
 	int			numKilled = so->numKilled;
 	bool		killedsomething = false;
 	bool		droppedpin PG_USED_FOR_ASSERTS_ONLY;
+	bool        hit = false;
 
 	Assert(BTScanPosIsValid(so->currPos));
 
@@ -3346,9 +3348,10 @@ _bt_killitems(IndexScanDesc scan)
 
 		droppedpin = true;
 		/* Attempt to re-read the buffer, getting pin and lock. */
-		buf = _bt_getbuf(scan->indexRelation, so->currPos.currPage, BT_READ);
+		buf = _bt_getbuf(scan->indexRelation, so->currPos.currPage, BT_READ, &hit);
 
 		page = BufferGetPage(buf);
+		pgstat_count_index_buffer(scan->indexRelation, !P_ISLEAF(BTPageGetOpaque(page)), hit);
 		if (BufferGetLSNAtomic(buf) == so->currPos.lsn)
 			so->currPos.buf = buf;
 		else

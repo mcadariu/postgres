@@ -495,7 +495,8 @@ ForgetPrivateRefCountEntry(PrivateRefCountEntry *ref)
 static Buffer ReadBuffer_common(Relation rel,
 								SMgrRelation smgr, char smgr_persistence,
 								ForkNumber forkNum, BlockNumber blockNum,
-								ReadBufferMode mode, BufferAccessStrategy strategy);
+								ReadBufferMode mode, BufferAccessStrategy strategy,
+								bool *hit);
 static BlockNumber ExtendBufferedRelCommon(BufferManagerRelation bmr,
 										   ForkNumber fork,
 										   BufferAccessStrategy strategy,
@@ -755,9 +756,10 @@ ReadRecentBuffer(RelFileLocator rlocator, ForkNumber forkNum, BlockNumber blockN
  *		fork with RBM_NORMAL mode and default strategy.
  */
 Buffer
-ReadBuffer(Relation reln, BlockNumber blockNum)
+ReadBuffer(Relation reln, BlockNumber blockNum, bool *hit)
 {
-	return ReadBufferExtended(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, NULL);
+	return ReadBufferExtended(reln, MAIN_FORKNUM, blockNum, RBM_NORMAL, NULL,
+							  hit);
 }
 
 /*
@@ -803,7 +805,8 @@ ReadBuffer(Relation reln, BlockNumber blockNum)
  */
 inline Buffer
 ReadBufferExtended(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
-				   ReadBufferMode mode, BufferAccessStrategy strategy)
+				   ReadBufferMode mode, BufferAccessStrategy strategy,
+				   bool *hit)
 {
 	Buffer		buf;
 
@@ -822,7 +825,7 @@ ReadBufferExtended(Relation reln, ForkNumber forkNum, BlockNumber blockNum,
 	 * miss.
 	 */
 	buf = ReadBuffer_common(reln, RelationGetSmgr(reln), 0,
-							forkNum, blockNum, mode, strategy);
+							forkNum, blockNum, mode, strategy, hit);
 
 	return buf;
 }
@@ -848,7 +851,7 @@ ReadBufferWithoutRelcache(RelFileLocator rlocator, ForkNumber forkNum,
 	return ReadBuffer_common(NULL, smgr,
 							 permanent ? RELPERSISTENCE_PERMANENT : RELPERSISTENCE_UNLOGGED,
 							 forkNum, blockNum,
-							 mode, strategy);
+							 mode, strategy, NULL);
 }
 
 /*
@@ -1016,7 +1019,7 @@ ExtendBufferedRelTo(BufferManagerRelation bmr,
 	{
 		Assert(extended_by == 0);
 		buffer = ReadBuffer_common(bmr.rel, bmr.smgr, bmr.relpersistence,
-								   fork, extend_to - 1, mode, strategy);
+								   fork, extend_to - 1, mode, strategy, NULL);
 	}
 
 	return buffer;
@@ -1113,7 +1116,8 @@ PinBufferForBlock(Relation rel,
 				  ForkNumber forkNum,
 				  BlockNumber blockNum,
 				  BufferAccessStrategy strategy,
-				  bool *foundPtr)
+				  bool *foundPtr,
+				  bool *hit)
 {
 	BufferDesc *bufHdr;
 	IOContext	io_context;
@@ -1164,8 +1168,11 @@ PinBufferForBlock(Relation rel,
 		 * zeroed instead), the per-relation stats always count them.
 		 */
 		pgstat_count_buffer_read(rel);
-		if (*foundPtr)
+		if (*foundPtr) {
+			if (hit)
+				*hit = true;
 			pgstat_count_buffer_hit(rel);
+		}
 	}
 	if (*foundPtr)
 	{
@@ -1193,7 +1200,8 @@ static pg_attribute_always_inline Buffer
 ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
 				  ForkNumber forkNum,
 				  BlockNumber blockNum, ReadBufferMode mode,
-				  BufferAccessStrategy strategy)
+				  BufferAccessStrategy strategy,
+				  bool *hit)
 {
 	ReadBuffersOperation operation;
 	Buffer		buffer;
@@ -1231,7 +1239,7 @@ ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
 		bool		found;
 
 		buffer = PinBufferForBlock(rel, smgr, persistence,
-								   forkNum, blockNum, strategy, &found);
+								   forkNum, blockNum, strategy, &found, hit);
 		ZeroAndLockBuffer(buffer, mode, found);
 		return buffer;
 	}
@@ -1252,7 +1260,8 @@ ReadBuffer_common(Relation rel, SMgrRelation smgr, char smgr_persistence,
 	if (StartReadBuffer(&operation,
 						&buffer,
 						blockNum,
-						flags))
+						flags,
+						hit))
 		WaitReadBuffers(&operation);
 
 	return buffer;
@@ -1264,7 +1273,8 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
 					 BlockNumber blockNum,
 					 int *nblocks,
 					 int flags,
-					 bool allow_forwarding)
+					 bool allow_forwarding,
+					 bool *hit)
 {
 	int			actual_nblocks = *nblocks;
 	int			maxcombine = 0;
@@ -1322,7 +1332,8 @@ StartReadBuffersImpl(ReadBuffersOperation *operation,
 										   operation->forknum,
 										   blockNum + i,
 										   operation->strategy,
-										   &found);
+										   &found,
+										   hit);
 		}
 
 		if (found)
@@ -1495,10 +1506,11 @@ StartReadBuffers(ReadBuffersOperation *operation,
 				 Buffer *buffers,
 				 BlockNumber blockNum,
 				 int *nblocks,
-				 int flags)
+				 int flags,
+				 bool *hit)
 {
 	return StartReadBuffersImpl(operation, buffers, blockNum, nblocks, flags,
-								true /* expect forwarded buffers */ );
+								true /* expect forwarded buffers */, hit);
 }
 
 /*
@@ -1513,13 +1525,14 @@ bool
 StartReadBuffer(ReadBuffersOperation *operation,
 				Buffer *buffer,
 				BlockNumber blocknum,
-				int flags)
+				int flags,
+				bool *hit)
 {
 	int			nblocks = 1;
 	bool		result;
 
 	result = StartReadBuffersImpl(operation, buffer, blocknum, &nblocks, flags,
-								  false /* single block, no forwarding */ );
+								  false /* single block, no forwarding */, hit);
 	Assert(nblocks == 1);		/* single block can't be short */
 
 	return result;
@@ -3013,7 +3026,8 @@ MarkBufferDirty(Buffer buffer)
 Buffer
 ReleaseAndReadBuffer(Buffer buffer,
 					 Relation relation,
-					 BlockNumber blockNum)
+					 BlockNumber blockNum,
+					 bool *hit)
 {
 	ForkNumber	forkNum = MAIN_FORKNUM;
 	BufferDesc *bufHdr;
@@ -3042,7 +3056,7 @@ ReleaseAndReadBuffer(Buffer buffer,
 		}
 	}
 
-	return ReadBuffer(relation, blockNum);
+	return ReadBuffer(relation, blockNum, hit);
 }
 
 /*

@@ -26,6 +26,7 @@
 #include "commands/vacuum.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/parse_coerce.h"
+#include "pgstat.h"
 #include "storage/bufmgr.h"
 #include "storage/indexfsm.h"
 #include "utils/catcache.h"
@@ -269,8 +270,10 @@ spgGetCache(Relation index)
 		{
 			Buffer		metabuffer;
 			SpGistMetaPageData *metadata;
+			bool               hit = false;
 
-			metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO);
+			metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO, &hit);
+			pgstat_count_metadata_index_buffer(index, hit);
 			LockBuffer(metabuffer, BUFFER_LOCK_SHARE);
 
 			metadata = SpGistPageGetMeta(BufferGetPage(metabuffer));
@@ -394,6 +397,7 @@ Buffer
 SpGistNewBuffer(Relation index)
 {
 	Buffer		buffer;
+	bool        hit = false;
 
 	/* First, try to get a page from FSM */
 	for (;;)
@@ -410,7 +414,7 @@ SpGistNewBuffer(Relation index)
 		if (SpGistBlockIsFixed(blkno))
 			continue;
 
-		buffer = ReadBuffer(index, blkno);
+		buffer = ReadBuffer(index, blkno, &hit);
 
 		/*
 		 * We have to guard against the possibility that someone else already
@@ -419,6 +423,7 @@ SpGistNewBuffer(Relation index)
 		if (ConditionalLockBuffer(buffer))
 		{
 			Page		page = BufferGetPage(buffer);
+			pgstat_count_record_index_buffer(index, hit);
 
 			if (PageIsNew(page))
 				return buffer;	/* OK to use, if never initialized */
@@ -449,13 +454,15 @@ SpGistNewBuffer(Relation index)
 void
 SpGistUpdateMetaPage(Relation index)
 {
+	bool hit = false;
 	SpGistCache *cache = (SpGistCache *) index->rd_amcache;
 
 	if (cache != NULL)
 	{
 		Buffer		metabuffer;
 
-		metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO);
+		metabuffer = ReadBuffer(index, SPGIST_METAPAGE_BLKNO, &hit);
+		pgstat_count_metadata_index_buffer(index, hit);
 
 		if (ConditionalLockBuffer(metabuffer))
 		{
@@ -568,6 +575,7 @@ allocNewBuffer(Relation index, int flags)
 Buffer
 SpGistGetBuffer(Relation index, int flags, int needSpace, bool *isNew)
 {
+	bool hit = false;
 	SpGistCache *cache = spgGetCache(index);
 	SpGistLastUsedPage *lup;
 
@@ -604,7 +612,7 @@ SpGistGetBuffer(Relation index, int flags, int needSpace, bool *isNew)
 		Buffer		buffer;
 		Page		page;
 
-		buffer = ReadBuffer(index, lup->blkno);
+		buffer = ReadBuffer(index, lup->blkno, &hit);
 
 		if (!ConditionalLockBuffer(buffer))
 		{
@@ -617,6 +625,7 @@ SpGistGetBuffer(Relation index, int flags, int needSpace, bool *isNew)
 		}
 
 		page = BufferGetPage(buffer);
+		pgstat_count_record_index_buffer(index, hit);
 
 		if (PageIsNew(page) || SpGistPageIsDeleted(page) || PageIsEmpty(page))
 		{

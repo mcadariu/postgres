@@ -21,6 +21,7 @@
 #include "access/xloginsert.h"
 #include "common/int.h"
 #include "common/pg_prng.h"
+#include "pgstat.h"
 #include "lib/qunique.h"
 #include "miscadmin.h"
 #include "storage/lmgr.h"
@@ -323,7 +324,7 @@ _bt_search_insert(Relation rel, Relation heaprel, BTInsertState insertstate)
 	if (RelationGetTargetBlock(rel) != InvalidBlockNumber)
 	{
 		/* Simulate a _bt_getbuf() call with conditional locking */
-		insertstate->buf = ReadBuffer(rel, RelationGetTargetBlock(rel));
+		insertstate->buf = ReadBuffer(rel, RelationGetTargetBlock(rel), NULL);
 		if (_bt_conditionallockbuf(rel, insertstate->buf))
 		{
 			Page		page;
@@ -423,6 +424,7 @@ _bt_check_unique(Relation rel, BTInsertState insertstate, Relation heapRel,
 	bool		inposting = false;
 	bool		prevalldead = true;
 	int			curposti = 0;
+	bool        hit = false;
 
 	/* Assume unique until we find a duplicate */
 	*is_unique = true;
@@ -733,9 +735,10 @@ _bt_check_unique(Relation rel, BTInsertState insertstate, Relation heapRel,
 			{
 				BlockNumber nblkno = opaque->btpo_next;
 
-				nbuf = _bt_relandgetbuf(rel, nbuf, nblkno, BT_READ);
+				nbuf = _bt_relandgetbuf(rel, nbuf, nblkno, BT_READ, &hit);
 				page = BufferGetPage(nbuf);
 				opaque = BTPageGetOpaque(page);
+				pgstat_count_index_buffer(rel, !P_ISLEAF(opaque), hit);
 				if (!P_IGNORE(opaque))
 					break;
 				if (P_RIGHTMOST(opaque))
@@ -1040,7 +1043,9 @@ _bt_stepright(Relation rel, Relation heaprel, BTInsertState insertstate,
 	rblkno = opaque->btpo_next;
 	for (;;)
 	{
-		rbuf = _bt_relandgetbuf(rel, rbuf, rblkno, BT_WRITE);
+		bool hit = false;
+		rbuf = _bt_relandgetbuf(rel, rbuf, rblkno, BT_WRITE, &hit);
+		pgstat_count_index_buffer(rel, !P_ISLEAF(opaque), hit);
 		page = BufferGetPage(rbuf);
 		opaque = BTPageGetOpaque(page);
 
@@ -1256,10 +1261,13 @@ _bt_insertonpg(Relation rel,
 		 */
 		if (unlikely(split_only_page))
 		{
+			bool hit = false;
+
 			Assert(!isleaf);
 			Assert(BufferIsValid(cbuf));
 
-			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, &hit);
+			pgstat_count_metadata_index_buffer(rel, hit);
 			metapg = BufferGetPage(metabuf);
 			metad = BTPageGetMeta(metapg);
 
@@ -1890,7 +1898,9 @@ _bt_split(Relation rel, Relation heaprel, BTScanInsert itup_key, Buffer buf,
 	 */
 	if (!isrightmost)
 	{
-		sbuf = _bt_getbuf(rel, oopaque->btpo_next, BT_WRITE);
+		bool hit = false;
+		sbuf = _bt_getbuf(rel, oopaque->btpo_next, BT_WRITE, &hit);
+		pgstat_count_index_buffer(rel, !P_ISLEAF(oopaque), hit);
 		spage = BufferGetPage(sbuf);
 		sopaque = BTPageGetOpaque(spage);
 		if (sopaque->btpo_prev != origpagenumber)
@@ -2247,12 +2257,14 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 	BTPageOpaque rpageop;
 	bool		wasroot;
 	bool		wasonly;
+	bool        hit = false;
 
 	Assert(P_INCOMPLETE_SPLIT(lpageop));
 	Assert(heaprel != NULL);
 
 	/* Lock right sibling, the one missing the downlink */
-	rbuf = _bt_getbuf(rel, lpageop->btpo_next, BT_WRITE);
+	rbuf = _bt_getbuf(rel, lpageop->btpo_next, BT_WRITE, &hit);
+	pgstat_count_index_buffer(rel, !P_ISLEAF(lpageop), hit);
 	rpage = BufferGetPage(rbuf);
 	rpageop = BTPageGetOpaque(rpage);
 
@@ -2264,7 +2276,8 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 		BTMetaPageData *metad;
 
 		/* acquire lock on the metapage */
-		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, &hit);
+		pgstat_count_metadata_index_buffer(rel, hit);
 		metapg = BufferGetPage(metabuf);
 		metad = BTPageGetMeta(metapg);
 
@@ -2320,6 +2333,7 @@ _bt_getstackbuf(Relation rel, Relation heaprel, BTStack stack, BlockNumber child
 {
 	BlockNumber blkno;
 	OffsetNumber start;
+	bool         hit = false;
 
 	blkno = stack->bts_blkno;
 	start = stack->bts_offset;
@@ -2330,9 +2344,10 @@ _bt_getstackbuf(Relation rel, Relation heaprel, BTStack stack, BlockNumber child
 		Page		page;
 		BTPageOpaque opaque;
 
-		buf = _bt_getbuf(rel, blkno, BT_WRITE);
+		buf = _bt_getbuf(rel, blkno, BT_WRITE, &hit);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
+		pgstat_count_index_buffer(rel, !P_ISLEAF(opaque), hit);
 
 		Assert(heaprel != NULL);
 		if (P_INCOMPLETE_SPLIT(opaque))
@@ -2460,6 +2475,7 @@ _bt_newlevel(Relation rel, Relation heaprel, Buffer lbuf, Buffer rbuf)
 	Buffer		metabuf;
 	Page		metapg;
 	BTMetaPageData *metad;
+	bool           hit = false;
 
 	lbkno = BufferGetBlockNumber(lbuf);
 	rbkno = BufferGetBlockNumber(rbuf);
@@ -2472,9 +2488,10 @@ _bt_newlevel(Relation rel, Relation heaprel, Buffer lbuf, Buffer rbuf)
 	rootblknum = BufferGetBlockNumber(rootbuf);
 
 	/* acquire lock on the metapage */
-	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE, &hit);
 	metapg = BufferGetPage(metabuf);
 	metad = BTPageGetMeta(metapg);
+	pgstat_count_metadata_index_buffer(rel, hit);
 
 	/*
 	 * Create downlink item for left page (old root).  The key value used is

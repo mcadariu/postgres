@@ -19,6 +19,7 @@
 #include "access/htup_details.h"
 #include "access/reloptions.h"
 #include "common/pg_prng.h"
+#include "pgstat.h"
 #include "storage/indexfsm.h"
 #include "utils/float.h"
 #include "utils/fmgrprotos.h"
@@ -824,6 +825,7 @@ Buffer
 gistNewBuffer(Relation r, Relation heaprel)
 {
 	Buffer		buffer;
+	bool        hit = false;
 
 	/* First, try to get a page from FSM */
 	for (;;)
@@ -833,7 +835,7 @@ gistNewBuffer(Relation r, Relation heaprel)
 		if (blkno == InvalidBlockNumber)
 			break;				/* nothing left in FSM */
 
-		buffer = ReadBuffer(r, blkno);
+		buffer = ReadBuffer(r, blkno, &hit);
 
 		/*
 		 * We have to guard against the possibility that someone else already
@@ -842,6 +844,7 @@ gistNewBuffer(Relation r, Relation heaprel)
 		if (ConditionalLockBuffer(buffer))
 		{
 			Page		page = BufferGetPage(buffer);
+			pgstat_count_index_buffer(r, !GistPageIsLeaf(page), hit);
 
 			/*
 			 * If the page was never initialized, it's OK to use.

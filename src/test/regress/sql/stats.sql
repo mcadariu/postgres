@@ -925,4 +925,98 @@ SELECT * FROM check_estimated_rows('SELECT * FROM table_fillfactor');
 
 DROP TABLE table_fillfactor;
 
+-- brin indexes: test stats collection for metadata and record index block
+-- hits and reads adding up to idx_blks_read and idx_blks_hit respectively
+SELECT count(*)
+  FROM brin_test
+ WHERE a = 19 AND b = 89;
+
+-- ensure pending stats are flushed
+SELECT pg_stat_force_next_flush();
+
+-- check effects
+BEGIN;
+SET LOCAL stats_fetch_consistency = snapshot;
+
+SELECT idx_metadata_blks_hit + idx_record_blks_hit = idx_blks_hit,
+       idx_metadata_blks_read + idx_record_blks_read = idx_blks_read
+  FROM pg_statio_all_indexes
+ WHERE indexrelname='brin_test_a_idx';
+
+COMMIT;
+
+-- gist indexes: test stats collection for metadata and record index block
+-- hits and reads adding up to idx_blks_read and idx_blks_hit respectively
+select count(*) from gist_point_tbl where p <@ box(point(0,0), point(200, 200));
+
+-- ensure pending stats are flushed
+SELECT pg_stat_force_next_flush();
+
+-- check effects
+BEGIN;
+SET LOCAL stats_fetch_consistency = snapshot;
+
+SELECT idx_metadata_blks_hit + idx_record_blks_hit = idx_blks_hit,
+       idx_metadata_blks_read + idx_record_blks_read = idx_blks_read
+  FROM pg_statio_all_indexes
+ WHERE indexrelname='gist_pointidx';
+
+COMMIT;
+
+-- hash indexes: test stats collection for metadata and record index block
+-- hits and reads adding up to idx_blks_read and idx_blks_hit respectively
+SELECT count(*)
+  FROM hash_name_heap
+ WHERE random = '1505703298';
+
+-- ensure pending stats are flushed
+SELECT pg_stat_force_next_flush();
+
+-- check effects
+BEGIN;
+SET LOCAL stats_fetch_consistency = snapshot;
+
+SELECT idx_metadata_blks_hit + idx_record_blks_hit = idx_blks_hit,
+       idx_metadata_blks_read + idx_record_blks_read = idx_blks_read
+  FROM pg_statio_all_indexes
+ WHERE indexrelname='hash_name_index';
+
+COMMIT;
+
+-- spgist indexes: test stats collection for metadata and record index block
+-- hits and reads adding up to idx_blks_read and idx_blks_hit respectively
+select count(*) from spgist_point_tbl where p <@ box(point(0,0), point(200, 200));
+
+-- ensure pending stats are flushed
+SELECT pg_stat_force_next_flush();
+
+-- check effects
+BEGIN;
+SET LOCAL stats_fetch_consistency = snapshot;
+
+SELECT idx_metadata_blks_hit + idx_record_blks_hit = idx_blks_hit,
+       idx_metadata_blks_read + idx_record_blks_read = idx_blks_read
+  FROM pg_statio_all_indexes
+ WHERE indexrelname='spgist_point_idx';
+
+COMMIT;
+
+-- b-tree indexes: test stats collection for metadata and record index block
+-- hits and reads adding up to idx_blks_read and idx_blks_hit respectively
+select count(*) from tenk2 where unique1 = '1504';
+
+-- ensure pending stats are flushed
+SELECT pg_stat_force_next_flush();
+
+-- check effects
+BEGIN;
+SET LOCAL stats_fetch_consistency = snapshot;
+
+SELECT idx_metadata_blks_hit + idx_record_blks_hit = idx_blks_hit,
+       idx_metadata_blks_read + idx_record_blks_read = idx_blks_read
+  FROM pg_statio_all_indexes
+ WHERE indexrelname='tenk2_unique1';
+
+COMMIT;
+
 -- End of Stats Test
