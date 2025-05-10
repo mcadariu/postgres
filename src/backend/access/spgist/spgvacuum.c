@@ -705,7 +705,7 @@ spgprocesspending(spgBulkDeleteState *bds)
 		/* examine the referenced page */
 		blkno = ItemPointerGetBlockNumber(&pitem->tid);
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
-									RBM_NORMAL, bds->info->strategy);
+									RBM_NORMAL, bds->info->strategy, NULL);
 		LockBuffer(buffer, BUFFER_LOCK_EXCLUSIVE);
 		page = (Page) BufferGetPage(buffer);
 
