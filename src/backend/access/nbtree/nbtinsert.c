@@ -21,6 +21,7 @@
 #include "access/xloginsert.h"
 #include "common/int.h"
 #include "common/pg_prng.h"
+#include "pgstat.h"
 #include "lib/qunique.h"
 #include "miscadmin.h"
 #include "storage/lmgr.h"
@@ -1260,6 +1261,7 @@ _bt_insertonpg(Relation rel,
 			Assert(BufferIsValid(cbuf));
 
 			metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+			pgstat_count_metadata_buffer(rel);
 			metapg = BufferGetPage(metabuf);
 			metad = BTPageGetMeta(metapg);
 
@@ -2256,6 +2258,8 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 	rpage = BufferGetPage(rbuf);
 	rpageop = BTPageGetOpaque(rpage);
 
+	pgstat_count_metadata_buffer_if(!P_ISLEAF(rpageop), rel);
+
 	/* Could this be a root split? */
 	if (!stack)
 	{
@@ -2265,6 +2269,7 @@ _bt_finish_split(Relation rel, Relation heaprel, Buffer lbuf, BTStack stack)
 
 		/* acquire lock on the metapage */
 		metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+		pgstat_count_metadata_buffer(rel);
 		metapg = BufferGetPage(metabuf);
 		metad = BTPageGetMeta(metapg);
 
@@ -2333,6 +2338,7 @@ _bt_getstackbuf(Relation rel, Relation heaprel, BTStack stack, BlockNumber child
 		buf = _bt_getbuf(rel, blkno, BT_WRITE);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
+		pgstat_count_metadata_buffer(rel);
 
 		Assert(heaprel != NULL);
 		if (P_INCOMPLETE_SPLIT(opaque))
@@ -2473,6 +2479,7 @@ _bt_newlevel(Relation rel, Relation heaprel, Buffer lbuf, Buffer rbuf)
 
 	/* acquire lock on the metapage */
 	metabuf = _bt_getbuf(rel, BTREE_METAPAGE, BT_WRITE);
+	pgstat_count_metadata_buffer(rel);
 	metapg = BufferGetPage(metabuf);
 	metad = BTPageGetMeta(metapg);
 

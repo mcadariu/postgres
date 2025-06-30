@@ -20,6 +20,7 @@
 #include "catalog/pg_collation.h"
 #include "commands/vacuum.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "nodes/execnodes.h"
 #include "storage/predicate.h"
 #include "utils/fmgrprotos.h"
@@ -684,7 +685,10 @@ gistdoinsert(Relation r, IndexTuple itup, Size freespace,
 		}
 
 		if (XLogRecPtrIsInvalid(stack->lsn))
+		{
 			stack->buffer = ReadBuffer(state.r, stack->blkno);
+			pgstat_count_metadata_buffer(state.r);
+		}
 
 		/*
 		 * Be optimistic and grab shared lock first. Swap it for an exclusive
@@ -949,6 +953,8 @@ gistFindPath(Relation r, BlockNumber child, OffsetNumber *downlinkoffnum)
 			UnlockReleaseBuffer(buffer);
 			break;
 		}
+		else
+			pgstat_count_metadata_buffer(r);
 
 		/* currently, internal pages are never deleted */
 		Assert(!GistPageIsDeleted(page));
@@ -1096,6 +1102,9 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 			break;
 		}
 		parent->buffer = ReadBuffer(r, parent->blkno);
+
+		pgstat_count_metadata_buffer(r);
+
 		LockBuffer(parent->buffer, GIST_EXCLUSIVE);
 		gistcheckpage(r, parent->buffer);
 		parent->page = (Page) BufferGetPage(parent->buffer);
@@ -1122,6 +1131,7 @@ gistFindCorrectParent(Relation r, GISTInsertStack *child, bool is_build)
 	{
 		ptr->buffer = ReadBuffer(r, ptr->blkno);
 		ptr->page = (Page) BufferGetPage(ptr->buffer);
+		pgstat_count_metadata_buffer_if(!GistPageIsLeaf(ptr->page), r);
 		ptr = ptr->parent;
 	}
 
@@ -1236,6 +1246,7 @@ gistfixsplit(GISTInsertState *state, GISTSTATE *giststate)
 		{
 			/* lock next page */
 			buf = ReadBuffer(state->r, GistPageGetOpaque(page)->rightlink);
+			pgstat_count_metadata_buffer_if(!GistPageIsLeaf((Page) page), state->r);
 			LockBuffer(buf, GIST_EXCLUSIVE);
 		}
 		else

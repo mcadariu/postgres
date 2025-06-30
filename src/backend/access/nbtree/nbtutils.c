@@ -21,6 +21,7 @@
 #include "access/reloptions.h"
 #include "commands/progress.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "utils/datum.h"
 #include "utils/lsyscache.h"
 
