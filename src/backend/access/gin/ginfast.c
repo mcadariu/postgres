@@ -25,6 +25,7 @@
 #include "catalog/pg_am.h"
 #include "commands/vacuum.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "port/pg_bitutils.h"
 #include "postmaster/autovacuum.h"
 #include "storage/indexfsm.h"
@@ -240,6 +241,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 	data.newRightlink = data.prevTail = InvalidBlockNumber;
 
 	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	pgstat_count_metadata_buffer(index);
 	metapage = BufferGetPage(metabuffer);
 
 	/*
@@ -320,6 +322,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 			data.newRightlink = sublist.head;
 
 			buffer = ReadBuffer(index, metadata->tail);
+			pgstat_count_metadata_buffer(index);
 			LockBuffer(buffer, GIN_EXCLUSIVE);
 			page = BufferGetPage(buffer);
 
@@ -359,6 +362,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 		CheckForSerializableConflictIn(index, NULL, GIN_METAPAGE_BLKNO);
 
 		buffer = ReadBuffer(index, metadata->tail);
+		pgstat_count_metadata_buffer(index);
 		LockBuffer(buffer, GIN_EXCLUSIVE);
 		page = BufferGetPage(buffer);
 
@@ -576,6 +580,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		{
 			freespace[data.ndeleted] = blknoToDelete;
 			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
+			pgstat_count_metadata_buffer(index);
 			LockBuffer(buffers[data.ndeleted], GIN_EXCLUSIVE);
 			page = BufferGetPage(buffers[data.ndeleted]);
 
@@ -828,6 +833,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 	}
 
 	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	pgstat_count_metadata_buffer(index);
 	LockBuffer(metabuffer, GIN_SHARE);
 	metapage = BufferGetPage(metabuffer);
 	metadata = GinPageGetMeta(metapage);
@@ -853,6 +859,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 	buffer = ReadBuffer(index, blkno);
 	LockBuffer(buffer, GIN_SHARE);
 	page = BufferGetPage(buffer);
+	pgstat_count_metadata_buffer(index);
 
 	LockBuffer(metabuffer, GIN_UNLOCK);
 
@@ -1004,6 +1011,7 @@ ginInsertCleanup(GinState *ginstate, bool full_clean,
 		 */
 		vacuum_delay_point(false);
 		buffer = ReadBuffer(index, blkno);
+		pgstat_count_metadata_buffer(index);
 		LockBuffer(buffer, GIN_SHARE);
 		page = BufferGetPage(buffer);
 	}

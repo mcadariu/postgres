@@ -18,6 +18,7 @@
 #include "access/relscan.h"
 #include "common/pg_prng.h"
 #include "miscadmin.h"
+#include "pgstat.h"
 #include "storage/predicate.h"
 #include "utils/datum.h"
 #include "utils/memutils.h"
@@ -1491,9 +1492,10 @@ scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
 				 * Here we must prevent deletion of next page by insertcleanup
 				 * process, which may be trying to obtain exclusive lock on
 				 * current page.  So, we lock next page before releasing the
-				 * current one
+				 * current one.
 				 */
 				Buffer		tmpbuf = ReadBuffer(scan->indexRelation, blkno);
+				pgstat_count_metadata_buffer(scan->indexRelation);
 
 				LockBuffer(tmpbuf, GIN_SHARE);
 				UnlockReleaseBuffer(pos->pendingBuffer);
@@ -1844,6 +1846,8 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 	Page		page;
 	BlockNumber blkno;
 
+	pgstat_count_metadata_buffer(scan->indexRelation);
+
 	*ntids = 0;
 
 	/*
@@ -1868,6 +1872,7 @@ scanPendingInsert(IndexScanDesc scan, TIDBitmap *tbm, int64 *ntids)
 	}
 
 	pos.pendingBuffer = ReadBuffer(scan->indexRelation, blkno);
+	pgstat_count_metadata_buffer(scan->indexRelation);
 	LockBuffer(pos.pendingBuffer, GIN_SHARE);
 	pos.firstOffset = FirstOffsetNumber;
 	UnlockReleaseBuffer(metabuffer);

@@ -185,6 +185,8 @@ _bt_search(Relation rel, Relation heaprel, BTScanInsert key, Buffer *bufP,
 		/* drop the read lock on the page, then acquire one on its child */
 		*bufP = _bt_relandgetbuf(rel, *bufP, child, page_access);
 
+		pgstat_count_metadata_buffer_if(opaque->btpo_level != 1, rel);
+
 		/* okay, all set to move down a level */
 		stack_in = new_stack;
 	}
@@ -305,6 +307,9 @@ _bt_moveright(Relation rel,
 
 			/* re-acquire the lock in the right mode, and re-check */
 			buf = _bt_getbuf(rel, blkno, access);
+
+			pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
+
 			continue;
 		}
 
@@ -312,6 +317,7 @@ _bt_moveright(Relation rel,
 		{
 			/* step right one page */
 			buf = _bt_relandgetbuf(rel, buf, opaque->btpo_next, access);
+			pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
 			continue;
 		}
 		else
@@ -2510,6 +2516,7 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 		buf = _bt_getbuf(rel, *blkno, BT_READ);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
+		pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
 
 		/*
 		 * If this isn't the page we want, walk right till we find what we
@@ -2537,6 +2544,7 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 			buf = _bt_relandgetbuf(rel, buf, *blkno, BT_READ);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
+			pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
 		}
 
 		/*
@@ -2547,6 +2555,8 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 		buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
+		pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
+
 		if (P_ISDELETED(opaque))
 		{
 			/*
@@ -2564,6 +2574,7 @@ _bt_lock_and_validate_left(Relation rel, BlockNumber *blkno,
 				buf = _bt_relandgetbuf(rel, buf, lastcurrblkno, BT_READ);
 				page = BufferGetPage(buf);
 				opaque = BTPageGetOpaque(page);
+				pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
 				if (!P_ISDELETED(opaque))
 					break;
 			}
@@ -2653,6 +2664,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 			buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
 			page = BufferGetPage(buf);
 			opaque = BTPageGetOpaque(page);
+			pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
 		}
 
 		/* Done? */
@@ -2676,6 +2688,7 @@ _bt_get_endpoint(Relation rel, uint32 level, bool rightmost)
 		buf = _bt_relandgetbuf(rel, buf, blkno, BT_READ);
 		page = BufferGetPage(buf);
 		opaque = BTPageGetOpaque(page);
+		pgstat_count_metadata_buffer_if(!P_ISLEAF(opaque), rel);
 	}
 
 	return buf;
