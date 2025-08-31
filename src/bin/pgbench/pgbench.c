@@ -848,6 +848,16 @@ typedef void (*initRowMethod) (PQExpBufferData *sql, int64 curr);
 static const PsqlScanCallbacks pgbench_callbacks = {
 	NULL,						/* don't need get_variable functionality */
 };
+/* Structure to hold worker thread data */
+typedef struct WorkerData
+{
+	PGconn         *con;
+	const char     *table;
+	int64          start_row;
+	int64          end_row;
+	initRowMethod  init_row;
+	int            worker_id;
+} WorkerData;
 
 static char
 get_table_relkind(PGconn *con, const char *table)
@@ -1616,6 +1626,151 @@ doConnect(void)
 	}
 
 	return conn;
+}
+
+/*
+ * Truncate specified table(s)
+ * tableName can be a single table or comma-separated list of tables
+ */
+static void
+truncateTable(PGconn *con, const char *tableName)
+{
+	char  *query;
+	size_t queryLen;
+
+	queryLen = strlen("TRUNCATE TABLE ") + strlen(tableName) + 1;
+	query = pg_malloc(queryLen);
+
+	snprintf(query, queryLen, "TRUNCATE TABLE %s", tableName);
+	executeStatement(con, query);
+	free(query);
+}
+
+static THREAD_FUNC_RETURN_TYPE THREAD_FUNC_CC
+initWorkerThread(void *arg)
+{
+	WorkerData		*data = (WorkerData *) arg;
+	PGresult		*res = NULL;
+	PQExpBufferData	sql;
+	char			copy_statement[256];
+	int64			row;
+	bool			copy_started = false;
+	PGconn			*conn;
+	int64			rows_to_process;
+	int64			batch_size;
+	PQExpBufferData row_buffer;
+
+	fprintf(stderr, "[Worker %d] started \n", data->worker_id);
+
+	/* Connection is pre-created, just use it */
+	conn = data->con;
+
+	if (data->worker_id != 0)
+		executeStatement(conn, "begin");
+
+	rows_to_process = data->end_row - data->start_row;
+
+	batch_size = rows_to_process / 4;
+	if (batch_size > 10000)
+		batch_size = 10000;
+	if (batch_size < 1)
+		batch_size = 1;
+
+	initPQExpBuffer(&row_buffer);
+	initPQExpBuffer(&sql);
+
+	if (data->worker_id == 0)
+		snprintf(copy_statement, sizeof(copy_statement),
+				 "COPY %s FROM STDIN (FREEZE ON)", data->table);
+	else
+		snprintf(copy_statement, sizeof(copy_statement),
+				 "COPY %s FROM STDIN", data->table);
+
+	res = PQexec(conn, copy_statement);
+
+	PQclear(res);
+
+	for (row = data->start_row; row < data->end_row; row++)
+	{
+		data->init_row(&row_buffer, row);
+		appendPQExpBufferStr(&sql, row_buffer.data);
+		resetPQExpBuffer(&row_buffer);  
+
+		if ((row - data->start_row + 1) % batch_size == 0 || row == data->end_row - 1)
+		{
+			PQputCopyData(conn, sql.data, sql.len);
+			resetPQExpBuffer(&sql);
+		}
+	}
+
+	termPQExpBuffer(&row_buffer);
+
+	PQputCopyEnd(conn, NULL);
+	fprintf(stderr, "[Worker %d] COPY completed successfully\n", data->worker_id);
+	executeStatement(conn, "commit");
+
+	termPQExpBuffer(&sql);
+	fprintf(stderr, "[Worker %d] Thread exiting\n", data->worker_id);
+	return NULL;
+}
+
+static void
+initPopulateTableParallel(PGconn *connection, int num_workers,
+						const char *table, int64 total_rows,
+						initRowMethod init_row)
+{
+	THREAD_T       *worker_threads;
+	WorkerData     *worker_data;
+	PGconn        **connections;
+	int64           rows_per_worker;
+	int             i;
+
+	/* Allocate worker data and threads */
+	worker_threads = pg_malloc(num_workers * sizeof(pthread_t));
+	worker_data = pg_malloc(num_workers * sizeof(WorkerData));
+	connections = pg_malloc(num_workers * sizeof(PGconn *));
+
+	/* Pre-create connections before threading to avoid malloc contention */
+	connections[0] = connection;  /* Reuse main connection */
+	for (i = 1; i < num_workers; i++)
+		connections[i] = doConnect();
+
+	/* Calculate work distribution */
+	rows_per_worker = total_rows / num_workers;
+
+	/* Create and start worker threads */
+	for (i = 0; i < num_workers; i++)
+	{
+		worker_data[i].con = connections[i];
+		worker_data[i].table = table;
+		worker_data[i].init_row = init_row;
+		worker_data[i].worker_id = i;
+
+		/* Distribute rows among workers */
+		worker_data[i].start_row = i * rows_per_worker;
+		worker_data[i].end_row = (i + 1) * rows_per_worker;
+
+		/* Last worker gets any remaining rows */
+		if (i == num_workers - 1)
+			worker_data[i].end_row = total_rows;
+
+		THREAD_CREATE(&worker_threads[i], initWorkerThread, &worker_data[i]);
+	}
+
+	/* Wait for all worker threads to complete */
+	for (i = 0; i < num_workers; i++)
+	{
+		THREAD_JOIN(worker_threads[i]);
+	}
+
+	/* Clean up connections (except main connection at index 0) */
+	for (i = 1; i < num_workers; i++)
+		PQfinish(connections[i]);
+
+	/* Clean up */
+	free(connections);
+	free(worker_threads);
+	free(worker_data);
 }
 
 /* qsort comparator for Variable array */
@@ -4960,11 +5115,7 @@ initCreateTables(PGconn *con)
 static void
 initTruncateTables(PGconn *con)
 {
-	executeStatement(con, "truncate table "
-					 "pgbench_accounts, "
-					 "pgbench_branches, "
-					 "pgbench_history, "
-					 "pgbench_tellers");
+	truncateTable(con, "pgbench_accounts, pgbench_branches, pgbench_history, pgbench_tellers");
 }
 
 static void
@@ -5113,6 +5264,23 @@ initPopulateTable(PGconn *con, const char *table, int64 base,
 	termPQExpBuffer(&sql);
 }
 
+static void
+initPopulateTableMain(PGconn *con, const char *table, int64 total_rows,
+					initRowMethod init_row)
+{
+	if (nthreads > 1)
+	{
+		executeStatement(con, "begin");
+		printf("Truncating table %s...\n", table);
+		truncateTable(con, table);
+		initPopulateTableParallel(con, nthreads, table, total_rows * scale, init_row);
+	}
+	else
+	{
+		initPopulateTable(con, table, total_rows, init_row);
+	}
+}
+
 /*
  * Fill the standard tables with some data generated and sent from the client.
  *
@@ -5128,20 +5296,23 @@ initGenerateDataClientSide(PGconn *con)
 	 * we do all of this in one transaction to enable the backend's
 	 * data-loading optimizations
 	 */
-	executeStatement(con, "begin");
+	if (nthreads == 1)
+		executeStatement(con, "begin");
 
 	/* truncate away any old data */
-	initTruncateTables(con);
+	if (nthreads == 1)
+		initTruncateTables(con);
 
 	/*
 	 * fill branches, tellers, accounts in that order in case foreign keys
 	 * already exist
 	 */
-	initPopulateTable(con, "pgbench_branches", nbranches, initBranch);
-	initPopulateTable(con, "pgbench_tellers", ntellers, initTeller);
-	initPopulateTable(con, "pgbench_accounts", naccounts, initAccount);
+	initPopulateTableMain(con, "pgbench_branches", nbranches, initBranch);
+	initPopulateTableMain(con, "pgbench_tellers", ntellers, initTeller);
+	initPopulateTableMain(con, "pgbench_accounts", naccounts, initAccount);
 
-	executeStatement(con, "commit");
+	if (nthreads == 1)
+		executeStatement(con, "commit");
 }
 
 /*
@@ -7132,7 +7303,7 @@ main(int argc, char **argv)
 	 * optimization; throttle_delay is calculated incorrectly below if some
 	 * threads have no clients assigned to them.)
 	 */
-	if (nthreads > nclients)
+	if (nthreads > nclients && !is_init_mode)
 		nthreads = nclients;
 
 	/*
@@ -7167,8 +7338,8 @@ main(int argc, char **argv)
 
 	if (is_init_mode)
 	{
-		if (benchmarking_option_set)
-			pg_fatal("some of the specified options cannot be used in initialization (-i) mode");
+		// if (benchmarking_option_set)
+			// pg_fatal("some of the specified options cannot be used in initialization (-i) mode");
 
 		if (partitions == 0 && partition_method != PART_NONE)
 			pg_fatal("--partition-method requires greater than zero --partitions");
