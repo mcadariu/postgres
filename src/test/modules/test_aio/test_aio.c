@@ -300,7 +300,7 @@ modify_rel_block(PG_FUNCTION_ARGS)
 }
 
 /*
- * Ensures a buffer for rel & blkno is in shared buffers, without actually
+ * Ensure a buffer for rel & blkno is in shared buffers, without actually
  * caring about the buffer contents. Used to set up test scenarios.
  */
 static Buffer
