@@ -502,6 +502,12 @@ pgbench <optional> <replaceable>options</replaceable> </optional> <replaceable>d
         Clients are distributed as evenly as possible among available threads.
         Default is 1.
        </para>
+       <para>
+        In initialization mode (<option>-i</option>), <option>-j</option>
+        sets the number of threads used to load
+        <structname>pgbench_accounts</structname> when it is range
+        partitioned, at most one per partition.
+       </para>
       </listitem>
      </varlistentry>
 
